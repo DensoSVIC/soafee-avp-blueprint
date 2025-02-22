@@ -1,6 +1,6 @@
 # SOAFEE Blueprint AVP Demo
 
-A fully-executable SOAFEE Blueprint, sponsored by DENSO International America, Inc..
+A fully-executable SOAFEE Blueprint, sponsored by DENSO International America, Inc.
 
 This blueprint runs the Autoware.Auto Autonomous Parking Vehicle (AVP)
 demo in Amazon AWS EC2.
@@ -34,8 +34,8 @@ Overview of the Lingua Franca port of the Autoware.Auto AVP Demo: [Predictable C
 ### Additional Features
 
 - Automatically build an EWAOL AMI
-- Teams may share a deployment, and multiple users may independantly customize and run the demo
-- Mulitple cloud deployments may be evaluated without colliding
+- Teams may share a deployment, and multiple users may independently customize and run the demo
+- Multiple cloud deployments may be evaluated without colliding
 
 ## Technology Overview
 
@@ -89,7 +89,7 @@ Overview of the Lingua Franca port of the Autoware.Auto AVP Demo: [Predictable C
 9. Stop or restart the AVP demo: `blueprint stop`
 10. Deconfigure the container registry: `blueprint deconfigure`
 11. Shut down your EC2 instances
-12. Destroy your cloud: `blueprint destroy`
+12. Destroy your cloud: `blueprint deprovision`
 
 We expect the runtime of this bluebook through a completed parking demo is about 2 hours.
 
