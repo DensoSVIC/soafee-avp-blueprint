@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Copy script set-xenv.sh
+  ansible.builtin.copy:
+    src: set-xenv.sh
+    dest: "{{ soafee_dir }}/set-xenv.sh"
+    mode: u=rwx,g=rwx,o=rx
+
+- name: Create directory ~/.config/autostart
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.config/autostart"
+    state: directory
+    recurse: true
+    mode: u=rwx,g=rwx,o=rx
+
+- name: Copy soafee-xenv desktop autostart
+  ansible.builtin.template:
+    src: soafee-xenv.desktop.j2
+    dest: "{{ ansible_env.HOME }}/.config/autostart/soafee-xenv.desktop"
+    mode: u=rwx,g=rwx,o=rx
+
+- name: Set DISPLAY index
+  ansible.builtin.include_tasks: get-display-index.yml
+
+- name: Stat soafee-xenv template
+  register: _soafee_xenv_query
+  ansible.builtin.stat:
+    path: "{{ soafee_dir }}/.soafee-xenv"
+
+- name: Copy soafee-xenv template
+  when: _soafee_xenv_query.stat.exists
+  ansible.builtin.template:
+    src: soafee-xenv.j2
+    dest: "{{ soafee_dir }}/.soafee-xenv"
+    mode: u=rwx,g=rx,o=rx

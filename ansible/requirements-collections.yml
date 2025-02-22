@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+collections:
+  - name: community.general
+  - name: amazon.aws
+  - name: community.aws
+  - name: community.docker
+  - name: kubernetes.core

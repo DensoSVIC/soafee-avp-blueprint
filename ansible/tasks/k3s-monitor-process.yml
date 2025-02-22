@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Stat PID of k3s terminal monitor
+  register: _pid_stat_result
+  ansible.builtin.stat:
+    path: "{{ ansible_env.HOME }}/.cache/k3s-monitor.pid"
+
+- name: Read k3s terminal monitor PID
+  when: _pid_stat_result.stat.exists
+  register: _pidfile
+  changed_when: false
+  ansible.builtin.slurp:
+    path: "{{ ansible_env.HOME }}/.cache/k3s-monitor.pid"
+
+- name: Set fact k3s_monitor_pid
+  when: _pidfile is defined and _pidfile.get('content', '') | length > 0
+  ansible.builtin.set_fact:
+    k3s_monitor_pid: "{{ _pidfile.content | b64decode }}"
+
+- name: Check status of k3s terminal monitor process
+  when: k3s_monitor_pid is defined and k3s_monitor_pid | length > 0
+  register: _pid_running
+  changed_when: false
+  failed_when: false
+  ansible.builtin.command: ps -p {{ k3s_monitor_pid }}
+
+- name: Set fact k3s_monitor_running
+  ansible.builtin.set_fact:
+    k3s_monitor_running: "{{ _pid_running is defined and _pid_running.get('rc', '') == 0 }}"

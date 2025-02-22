@@ -1,0 +1,98 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+
+header:
+  version: 16
+  includes:
+    # meta-ewaol sets default branch to '{{ ewaol_distro_codename }}'
+    - repo: meta-ewaol
+      file: kas/ewaol.yml
+    - repo: meta-source-archive
+      file: kas/meta-source-archive.yml
+
+repos:
+  poky:
+    url: https://git.yoctoproject.org/poky
+    branch: {{ ewaol_distro_codename }}
+    path: layers/poky
+    layers:
+      meta:
+  meta-arm:
+    url: https://git.yoctoproject.org/meta-arm
+    branch: {{ ewaol_distro_codename }}
+    path: layers/meta-arm
+    layers:
+      meta-arm:
+      meta-arm-toolchain:
+  meta-ewaol:
+    url: https://gitlab.com/soafee/ewaol/meta-ewaol
+    branch: {{ ewaol_distro_codename }}
+    path: layers/meta-ewaol
+  meta-aws:
+    url: https://github.com/aws4embeddedlinux/meta-aws
+    branch: {{ ewaol_distro_codename }}
+    path: layers/meta-aws
+  meta-openembedded:
+    url: https://github.com/openembedded/meta-openembedded
+    branch: {{ ewaol_distro_codename }}
+    layers:
+      meta-multimedia:
+  meta-virtualization:
+    url: https://git.yoctoproject.org/meta-virtualization
+    branch: {{ ewaol_distro_codename }}
+    path: layers/meta-virtualization
+  meta-source-archive:
+    url: https://github.com/xronos-inc/meta-source-archive
+    tag: {{ ewaol_distro_codename }}
+    branch: ""  # force tag instead of a branch
+    path: layers/meta-source-archive
+
+machine: aws-ec2-arm64
+
+local_conf_header:
+   meta-custom: |
+    FILESEXTRAPATHS:prepend:pn-linux-yocto = "${TOPDIR}/../kernelconfig/:"
+    SRC_URI:append:pn-linux-yocto = " file://gravitonKernelConfigs.cfg "
+
+    IMAGE_BASENAME = "soafee-ewaol-{{ ewaol_distro_codename }}"
+    DISTRO_FEATURES:append = " ewaol-baremetal"
+
+    # AWS EC2
+    INHERIT += " aws-ec2-image"
+    MACHINE = "aws-ec2-arm64"
+    CLOUD_INIT_CFG = "ec2"
+
+    # cloud-init
+    IMAGE_INSTALL:append = " aws-cli cloud-init cloud-init-systemd python3-netifaces python3-charset-normalizer"
+    IMAGE_INSTALL:append = " e2fsprogs e2fsprogs-resize2fs e2fsprogs-tune2fs e2fsprogs-e2fsck e2fsprogs-mke2fs parted"
+    IMAGE_INSTALL:append = " git rng-tools"
+    IMAGE_INSTALL:append = " sudo sudo-sudo openssh-sftp-server"
+    IMAGE_FSTYPES += " wic wic.vhdx"
+
+    # open ssh
+    # Forcing removal of debug-tweaks as ewaol includes it in all targets by default and that leads
+    # to reversing some sshd_config hardening done in our bbappend when do_rootfs runs
+    EXTRA_IMAGE_FEATURES:append = " ssh-server-openssh"
+    EXTRA_IMAGE_FEATURES:remove = " debug-tweaks"
+
+    # virtualization - k3s + containerd
+    DISTRO_FEATURES:append = " docker podman seccomp containerd polkit"
+    IMAGE_INSTALL:append = " podman polkit"
+    
+    # package management
+    EXTRA_IMAGE_FEATURES:append = " package-management"
+    PACKAGE_CLASSES = "package_rpm"
+    IMAGE_INSTALL:append = " rpm dnf"
+    IMAGE_INSTALL:append = " python3-pip gnupg"
+    IMAGE_INSTALL:append = " openssl ca-certificates gnupg"
+
+    # time
+    IMAGE_INSTALL:append = " ntp tzdata"
+
+    # packages used by configuration tools (Ansible)
+    IMAGE_INSTALL:append = " curl wget unzip gzip tar sshpass jq rsync"
+
+    # packages useful for development images
+    EXTRA_IMAGE_FEATURES:append = " bash-completion-pkgs"
+    IMAGE_INSTALL:append = " nano htop lsof less tree sed"
+    IMAGE_INSTALL:append = " dash bash-completion shadow colord"

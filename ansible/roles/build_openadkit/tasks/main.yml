@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Docker build openadkit (may take a while...)
+  loop:
+    - openadkit-ros-foxy
+    - openadkit-ros-dependencies
+    - openadkit-autoware
+    - openadkit
+  loop_control:
+    loop_var: _docker_target
+  community.docker.docker_image_build:
+    name: "{{ _docker_target }}"
+    target: "{{ _docker_target }}"
+    path: "{{ (soafee_avp_demo_path, 'AutowareAuto') | path_join }}"
+    shm_size: 16G  # build will utilize > 16G if available
+    rebuild: always
+
+- name: Docker tag openadkit
+  community.docker.docker_image_tag:
+    name: openadkit:latest
+    repository:
+      - "{{ ecr_user_repo_uri }}:openadkit-{{ ansible_architecture }}"
+
+- name: Docker push openadkit to ECR (may take a while...)
+  community.docker.docker_image:
+    source: local
+    name: "{{ ecr_user_repo_uri }}"
+    tag: "openadkit-{{ ansible_architecture }}"
+    push: true

@@ -1,0 +1,110 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: debconf add code/add-microsoft-repo
+  become: true
+  ansible.builtin.debconf:
+    name: code
+    question: add-microsoft-repo
+    value: "true"
+    vtype: "boolean"
+
+- name: Download Microsoft signing key
+  become: true
+  ansible.builtin.get_url:
+    url: https://packages.microsoft.com/keys/microsoft.asc
+    dest: /etc/apt/trusted.gpg.d/packages.microsoft.asc
+    mode: u=rw,g=r,o=r
+
+- name: Add apt repository
+  become: true
+  ansible.builtin.apt_repository:
+    repo: deb [signed-by=/etc/apt/trusted.gpg.d/packages.microsoft.asc] https://packages.microsoft.com/repos/code stable main
+
+- name: Install apt package code{{ '=' ~ configure_vscode_version if configure_vscode_version else '' }}
+  become: true
+  ansible.builtin.apt:
+    name: code{{ '=' ~ configure_vscode_version if configure_vscode_version else '' }}
+
+- name: Install VS Code extensions
+  with_items: "{{ configure_vscode_extensions }}"
+  register: _vscode_extension_install
+  changed_when: "'successfully installed' in _vscode_extension_install.stdout"
+  ansible.builtin.command:
+    cmd: code --install-extension {{ item }}
+
+- name: Create directory ~/.vscode-server
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.vscode-server"
+    state: directory
+    mode: u=rwx,g=rx,o=
+
+- name: Install VS Code server extensions
+  with_items: "{{ configure_vscode_extensions }}"
+  register: _vscode_extension_install
+  changed_when: "'successfully installed' in _vscode_extension_install.stdout"
+  ansible.builtin.command:
+    cmd: >-
+      code
+      --extensions-dir {{ ansible_env.HOME }}/.vscode-server/extensions
+      --install-extension {{ item }}
+
+- name: Stat directory ~/.config
+  register: _config_folder_query
+  ansible.builtin.stat:
+    path: "{{ ansible_env.HOME }}/.config"
+
+- name: Create directory ~/.config
+  when: not _config_folder_query.stat.exists
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.config"
+    state: directory
+    mode: u=rwx,g=rx,o=
+
+- name: Stat directory ~/.config/autostart
+  register: _config_folder_query
+  ansible.builtin.stat:
+    path: "{{ ansible_env.HOME }}/.config/autostart"
+
+- name: Create directory ~/.config/autostart
+  when: not _config_folder_query.stat.exists
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.config/autostart"
+    state: directory
+    mode: u=rwx,g=rx,o=
+
+- name: Install VS Code desktop autostart
+  ansible.builtin.template:
+    src: soafee-vscode.desktop.j2
+    dest: "{{ ansible_env.HOME }}/.config/autostart/soafee-vscode.desktop"
+    mode: u=rwx,g=rwx,o=rx
+
+- name: Create VS Code directory ~/.config/Code
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.config/Code"
+    state: directory
+    mode: u=rwx,g=rwx,o=rx
+
+- name: Create VS Code directory ~/.config/Code/User
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.config/Code/User"
+    state: directory
+    mode: u=rwx,g=rwx,o=rx
+
+- name: Copy VS Code user settings.json
+  ansible.builtin.copy:
+    src: vscode-user.json
+    dest: "{{ ansible_env.HOME }}/.config/Code/User/settings.json"
+    mode: u=rw,g=rw,o=
+
+- name: Create VS Code workspace directory
+  ansible.builtin.file:
+    path: "{{ soafee_dir }}/.vscode"
+    state: directory
+    mode: u=rwx,g=rwx,o=
+
+- name: Copy VS Code workspace settings.json
+  ansible.builtin.copy:
+    src: vscode-workspace.json
+    dest: "{{ soafee_dir }}/.vscode/settings.json"
+    mode: u=rw,g=rw,o=

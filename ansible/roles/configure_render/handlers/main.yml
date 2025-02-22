@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: schedule_reboot
+  when: inventory_hostname != "localhost"
+  become: true
+  ansible.builtin.copy:
+    dest: /var/run/reboot-required
+    content: ""
+    force: false

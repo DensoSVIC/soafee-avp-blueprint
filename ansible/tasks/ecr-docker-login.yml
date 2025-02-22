@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Query ECR token
+  register: _get_login_password
+  changed_when: false
+  ansible.builtin.command:
+    cmd: aws ecr get-login-password --region {{ aws_region }}
+
+- name: Set fact ecr_password
+  ansible.builtin.set_fact:
+    ecr_password: "{{ _get_login_password.stdout }}"
+
+- name: Docker login with latest ECR token
+  changed_when: false
+  ansible.builtin.command:
+    cmd: docker login --username AWS --password-stdin {{ ecr_registry_uri }}
+    stdin: "{{ ecr_password }}"

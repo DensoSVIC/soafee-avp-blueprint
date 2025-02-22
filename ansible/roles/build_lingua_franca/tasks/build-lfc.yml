@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Build with lfc
+  changed_when: true
+  ansible.builtin.command:
+    chdir: "{{ soafee_avp_demo_path }}/avp"
+    cmd: >-
+      {{ ansible_env.HOME }}/.local/bin/lfc
+      --build-type=Release
+      --lint
+      src/Autoware.lf
+
+- name: Set default shell in federate dockerfile
+  with_items: "{{ soafee_avp_demo_federates_generated }}"
+  ansible.builtin.replace:
+    path: "{{ (soafee_avp_demo_federate_path, item, 'Dockerfile') | path_join }}"
+    regexp: "/bin/sh"
+    replace: "/bin/bash"
+
+# LFC build does not cache build files and so always results in a rebuild.
+# use of build cache (ccache) in docker images reduces build time
+- name: Add build cache to federate Dockerfiles
+  with_items: "{{ soafee_avp_demo_federates_generated }}"
+  ansible.builtin.replace:
+    path: "{{ (soafee_avp_demo_federate_path, item, 'Dockerfile') | path_join }}"
+    regexp: '^RUN set -ex \\$'
+    replace: 'RUN --mount=type=cache,target=/ccache,id=openadkit-cache set -e \\'
+
+- name: Write source checksum
+  ansible.builtin.copy:
+    dest: "{{ soafee_dir }}/.cache/lfc-source-hash"
+    content: "{{ _current_source_hash.stdout }}"
+    mode: u=rw,g=rw,o=
+    force: true
+
+- name: Compute checksum of build directory
+  register: _current_build_hash
+  changed_when: false
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -c
+      - "find '{{ soafee_avp_demo_path }}/avp/fed-gen' -type f -exec md5sum {} \\; | sort | md5sum | awk '{print $1}'"
+
+- name: Write build checksum
+  ansible.builtin.copy:
+    dest: "{{ soafee_dir }}/.cache/lfc-build-hash"
+    content: "{{ _current_build_hash.stdout }}"
+    mode: u=rw,g=rw,o=
+    force: true

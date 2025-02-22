@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+# This file is managed by Ansible.
+
+# This file contains environment variables such as XWindows
+# display index that are shared with k3s or docker applications
+# who otherwise do not have a way to query these values.
+
+DISPLAY={{ display }}
+SOAFEE_DCV_SESSION_DISPLAY={{ display }}

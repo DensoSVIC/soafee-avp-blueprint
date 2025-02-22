@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+# is this a virtual instance?
+# default to true if ec2_private_ip is defined, override by setting cloud_instance
+avp_cloud_instance: "{{ cloud_instance | default(ec2_private_ip is defined and ec2_private_ip | length > 0 ) | bool }}"
+
+# ECR image for this user
+ecr_user_repo_name: "{{ deployment }}-{{ ansible_user }}"
+ecr_user_repo_uri: "{{ ecr_registry_uri }}/{{ ecr_user_repo_name }}"

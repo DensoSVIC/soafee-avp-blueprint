@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Delete ECR repository
+  community.aws.ecs_ecr:
+    name: "{{ deployment }}-{{ ansible_user }}"
+    state: absent
+    force_absent: true
+    aws_region: "{{ aws_region }}"
+
+- name: S3 list all objects in bucket {{ ami_s3_bucket }}
+  register: _s3_objects
+  ignore_errors: true
+  amazon.aws.s3_object_info:
+    region: "{{ aws_region }}"
+    bucket_name: "{{ ami_s3_bucket }}"
+
+- name: Delete all objects from S3 bucket
+  when: not _s3_objects.failed
+  loop: "{{ _s3_objects.s3_keys }}"
+  amazon.aws.s3_object:
+    bucket: "{{ ami_s3_bucket }}"
+    object: "{{ item }}"
+    mode: delobj

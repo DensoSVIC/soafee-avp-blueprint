@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: k3s deploy registry configuration
+  register: k3s_registries
+  become: true
+  ansible.builtin.template:
+    src: k3s-registries.yaml.j2
+    dest: /etc/rancher/k3s/registries.yaml
+    group: k3s
+    mode: 0660
+
+- name: k3s restart service to apply registry change
+  become: true
+  ansible.builtin.service:
+    name: k3s
+    state: "{{ k3s_registries.changed | ternary('restarted', 'started') }}"
+
+- name: k3s create namespace {{ deployment }}-{{ ansible_user }}
+  kubernetes.core.k8s:
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    name: "{{ deployment }}-{{ ansible_user }}"
+    kind: namespace
+    state: present
+
+- name: k3s query default namespace
+  register: _k3s_namespace_query
+  changed_when: false
+  ansible.builtin.command:
+    cmd: >-
+      kubectl config view 
+        --kubeconfig /etc/rancher/k3s/k3s.yaml
+        --minify
+        --output jsonpath='{.contexts[0].context.namespace}'
+
+- name: k3s set current default namespace to {{ deployment }}-{{ ansible_user }}
+  when: _k3s_namespace_query.stdout != (deployment ~ "-" ~ ansible_user)
+  register: _k3s_namespace
+  changed_when: "'modified' in _k3s_namespace.stdout"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl config set-context
+        --kubeconfig /etc/rancher/k3s/k3s.yaml
+        --current 
+        --namespace={{ deployment }}-{{ ansible_user }}
+
+- name: Create ECR k3s agent token refresh cron job
+  ansible.builtin.cron:
+    name: "{{ deployment }}-{{ ansible_user }} refresh k3s ECR token"
+    minute: "0"
+    hour: "*/12"
+    job: >-
+      /bin/bash -c
+      'kubectl delete secret
+      --namespace {{ deployment }}-{{ ansible_user }}
+      --kubeconfig /etc/rancher/k3s/k3s.yaml
+      --ignore-not-found
+      {{ deployment }}-{{ ansible_user }}-ecr
+      &&
+      kubectl create secret
+      --namespace {{ deployment }}-{{ ansible_user }}
+      --kubeconfig /etc/rancher/k3s/k3s.yaml
+      docker-registry
+      --docker-server=https://{{ ecr_registry_uri }}
+      --docker-username=AWS
+      --docker-password=$(aws ecr get-login-password --region {{ aws_region }} )
+      {{ deployment }}-{{ ansible_user }}-ecr'

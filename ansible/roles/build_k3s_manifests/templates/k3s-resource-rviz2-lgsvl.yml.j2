@@ -1,0 +1,161 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+{% set base_port = 7400 + 10 %}
+
+###############
+# rviz-lgsvl
+###############
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rviz2-lgsvl
+  namespace: {{ deployment }}-{{ ansible_user }}
+  labels:
+    app: rviz2-lgsvl
+    user: {{ ansible_user }}
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: rviz2-lgsvl
+      user: {{ ansible_user }}
+  template:
+    metadata:
+      labels:
+        app: rviz2-lgsvl
+        user: {{ ansible_user }}
+    spec:
+      hostname: rviz2-lgsvl
+      nodeName: {{ deployment }}-avp-render
+{% if _k3s_use_gpu | bool %}
+      runtimeClassName: nvidia
+{% endif %}
+      hostIPC: true  # used by MIT-SHM
+      terminationGracePeriodSeconds: 5
+      imagePullSecrets:
+      - name: {{ deployment }}-{{ ansible_user }}-ecr
+      volumes:
+      - name: dev-shm
+        hostPath:
+          path: /dev/shm
+      - name: x11-unix
+        hostPath:
+          path: /tmp/.X11-unix
+      - name: xauthority
+        hostPath:
+          path: {{ xauthority }}
+{% if _k3s_use_gpu | bool %}
+      - name: nvidia-icd
+        hostPath:
+          path: /etc/vulkan/icd.d/nvidia_icd.json
+      - name: nvidia-vulkan-layer
+        hostPath:
+          path: /etc/vulkan/implicit_layer.d/nvidia_layers.json
+      - name: nvidia-egl-vendor
+        hostPath:
+          path: /usr/share/glvnd/egl_vendor.d/10_nvidia.json
+      - name: dri
+        hostPath:
+          path: /dev/dri
+{% endif %}
+
+      containers:
+      - name: federate-rviz2
+        image: {{ ecr_user_repo_uri }}:federate-rviz2
+        imagePullPolicy: IfNotPresent
+        tty: true
+        stdin: true
+{% if _k3s_use_gpu | bool %}
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+{% endif %}
+        volumeMounts:
+        - name: dev-shm
+          mountPath: /dev/shm
+        - name: x11-unix
+          mountPath: /tmp/.X11-unix
+        - name: xauthority
+          mountPath: /.Xauthority
+{% if _k3s_use_gpu | bool %}
+        - name: nvidia-icd
+          mountPath: /etc/vulkan/icd.d/nvidia_icd.json
+          readOnly: true
+        - name: nvidia-vulkan-layer
+          mountPath: /etc/vulkan/implicit_layer.d/nvidia_layers.json
+          readOnly: true
+        - name: nvidia-egl-vendor
+          mountPath: /usr/share/glvnd/egl_vendor.d/10_nvidia.json
+          readOnly: true
+        - name: dri
+          mountPath: /dev/dri
+          readOnly: true
+{% endif %}
+        env:
+        - name: LF_TELEGRAF_HOST_NAME
+          value: {{ avp_render_host_private }}
+        - name: XAUTHORITY
+          value: "/.Xauthority"
+        - name: DISPLAY
+          value: "{{ display }}"
+        - name: LGSVL__SIMULATOR_HOST
+          value: {{ avp_render_host_private }}
+        - name: LGSVL__SIMULATOR_PORT
+          value: "{{ avp_svl_port }}"
+{% if _k3s_use_gpu | bool %}
+        - name: NVIDIA_DRIVER_CAPABILITIES
+          value: "utility,display,graphics"
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "all"
+{% endif %}
+        ports:
+{% for ii in range(0,4) %}
+        - name: dds-{{ "{:02d}".format(base_port + ii) }}
+          containerPort: {{ base_port + ii }}
+          protocol: UDP
+{% endfor %}
+
+      - name: lgsvl-bridge
+        image: {{ ecr_user_repo_uri }}:lgsvl-bridge
+        imagePullPolicy: IfNotPresent
+        tty: true
+        stdin: true
+        env:
+        - name: LGSVL__SIMULATOR_HOST
+          value: {{ avp_render_host_private }}
+        - name: LGSVL__SIMULATOR_PORT
+          value: "{{ avp_svl_port }}"
+        ports:
+        - name: lgsvl-bridge
+          containerPort: 9090
+          protocol: TCP
+{% for ii in range(4,8) %}
+        - name: dds-{{ "{:02d}".format(base_port + ii) }}
+          containerPort: {{ base_port + ii }}
+          protocol: UDP
+{% endfor %}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rviz2-lgsvl
+  namespace: {{ deployment }}-{{ ansible_user }}
+  labels:
+    app: rviz2-lgsvl
+    user: {{ ansible_user }}
+spec:
+  selector:
+    app: rviz2-lgsvl
+    user: {{ ansible_user }}
+  ports:
+  - name: lgsvl-bridge
+    port: 9090
+    targetPort: lgsvl-bridge
+    protocol: TCP
+{% for ii in range(8) %}
+  - name: dds-{{ "{:02d}".format(base_port + ii) }}
+    port: {{ base_port + ii }}
+    targetPort: dds-{{ "{:02d}".format(base_port + ii) }}
+    protocol: UDP
+{% endfor %}

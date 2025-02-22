@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: containerd pull image
+  with_items: "{{ soafee_avp_demo_federates_formatted | reject('search', 'rviz2') }}"
+  become: true
+  ansible.builtin.command:
+    cmd: >
+      /usr/local/bin/k3s
+      ctr --namespace k8s.io
+      images pull
+      --user AWS:{{ ecr_password }}
+      {{ ecr_user_repo_uri }}:{{ item }}
+
+- name: containerd pull xronosinc/rti:{{ rti_tag }}
+  become: true
+  ansible.builtin.command:
+    cmd: >
+      /usr/local/bin/k3s
+      ctr --namespace k8s.io
+      images pull
+      docker.io/xronosinc/rti:{{ rti_tag }}

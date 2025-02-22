@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Create soafee directory {{ soafee_dir }}
+  ansible.builtin.file:
+    path: "{{ soafee_dir }}"
+    state: directory
+    mode: u=rwx,g=rwx,o=
+
+- name: Stat soafee cache directory {{ soafee_dir }}/.cache
+  register: _cache_folder_query
+  ansible.builtin.stat:
+    path: "{{ ansible_env.HOME }}/.cache"
+
+- name: Create soafee cache directory {{ soafee_dir }}/.cache
+  ansible.builtin.file:
+    path: "{{ soafee_dir }}/.cache"
+    state: directory
+    mode: u=rwx,g=rwx,o=
+
+- name: Create k3s directory {{ soafee_dir }}/k3s
+  ansible.builtin.file:
+    path: "{{ soafee_dir }}/k3s"
+    state: directory
+    mode: u=rwx,g=rwx,o=

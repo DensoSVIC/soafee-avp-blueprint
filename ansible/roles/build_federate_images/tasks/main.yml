@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Docker build EWAOL federates (may take a while...)
+  loop: "{{ soafee_avp_demo_federates_formatted | reject('search', 'rviz2') | list }}"
+  loop_control:
+    extended: true
+  community.docker.docker_image_build:
+    name: "{{ ecr_user_repo_uri }}"
+    tag: "{{ item }}"
+    path: "{{ (soafee_avp_demo_federate_path, soafee_avp_demo_federates_generated[ansible_loop.index0]) | path_join }}"
+    rebuild: always
+    shm_size: 4G
+
+- name: Docker push EWAOL federates (may take a while...)
+  with_items: "{{ soafee_avp_demo_federates_formatted | reject('search', 'rviz2') | list }}"
+  community.docker.docker_image:
+    source: local
+    name: "{{ ecr_user_repo_uri }}"
+    tag: "{{ item }}"
+    push: true

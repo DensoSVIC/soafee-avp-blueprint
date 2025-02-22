@@ -1,0 +1,84 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+# see https://github.com/NVIDIA/k8s-device-plugin?tab=readme-ov-file
+# see https://www.jimangel.io/posts/nvidia-rtx-gpu-kubernetes-setup/
+
+# containerd may have the erroneous line `disabled_plugins = ["cri"]`
+# which does not follow the correct fqn format of its config file,
+# resulting in the containerd service failing. the line was likely
+# introduced due to port conflicts between cri and moby.
+- name: containerd remove NVIDIA cri from disabled plugins
+  register: _continerd_config
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/containerd/config.toml
+    regexp: '^(disabled_plugins\s*=\s*\[)(.*?)(\s*"cri",?\s*)(.*?)(\])$'
+    line: '\g<1>\g<2>\g<4>\g<5>'
+    backrefs: yes
+
+- name: containerd restart
+  register: _containerd_service
+  become: true
+  ansible.builtin.service:
+    name: containerd
+    state: "{{ 'restarted' if _continerd_config.changed else 'started' }}"
+
+- name: docker restart
+  become: true
+  ansible.builtin.service:
+    name: docker
+    state: "{{ 'restarted' if _containerd_service.changed else 'started' }}"
+
+- name: Download Helm install script
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/helm/helm/v{{ configure_helm_version }}/scripts/get-helm-3
+    dest: "{{ ansible_env.HOME }}/.cache/get-helm.sh"
+    mode: 0755
+
+- name: Install Helm
+  become: true
+  ansible.builtin.command:
+    chdir: "{{ ansible_env.HOME }}/.cache/"
+    cmd: ./get-helm.sh --version v{{ configure_helm_version }}
+    creates: /usr/local/bin/helm
+
+- name: Helm install plugin helm-diff
+  kubernetes.core.helm_plugin:
+    kubeconfig_path: "{{ ansible_env.HOME }}/.kube/config"
+    kube_context: default
+    plugin_path: https://github.com/databus23/helm-diff
+    plugin_version: v3.9.14
+
+- name: Helm add NVIDIA repository
+  kubernetes.core.helm_repository:
+    kubeconfig_path: "{{ ansible_env.HOME }}/.kube/config"
+    kube_context: default
+    name: nvidia
+    repo_url: https://nvidia.github.io/gpu-operator
+
+- name: Helm update repository cache
+  kubernetes.core.helm:
+    kubeconfig_path: "{{ ansible_env.HOME }}/.kube/config"
+    kube_context: default
+    namespace: kube-system
+    name: _dummy
+    state: absent  # _dummy deployment
+    update_repo_cache: true
+    wait: true
+
+- name: Helm deploy NVIDIA GPU operator
+  kubernetes.core.helm:
+    kubeconfig_path: "{{ ansible_env.HOME }}/.kube/config"
+    kube_context: default
+    namespace: "gpu-operator"
+    create_namespace: true
+    name: gpu-operator
+    chart_ref: nvidia/gpu-operator
+    chart_version: v{{ configure_nvidia_gpu_operator_version }}
+    wait: true
+    values:
+      driver.enabled: false              # use native driver on the host
+      driver.useOpenKernelModules: true  # use the legacy open kernel modules
+      toolkit.enabled: false             # use nvidia-container-toolkit on the host
+      gfd.enabled: true                  # gpu-feature-discovery

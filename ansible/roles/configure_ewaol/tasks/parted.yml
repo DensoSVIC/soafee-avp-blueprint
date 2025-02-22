@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+# see https://github.com/aws4embeddedlinux/meta-aws-ewaol?tab=readme-ov-file#limitations
+- name: Query size of root filesystem
+  register: _parted
+  become: true
+  changed_when: false
+  ansible.builtin.command:
+    cmd: parted /dev/nvme0n1 print
+
+- name: Resize root fs to 100% of available disk
+  when: "'Warning: Not all of the space available' in _parted.stderr"
+  become: true
+  block:
+  - name: Disable swap for the current session
+    changed_when: true
+    ansible.builtin.command:
+      cmd: swapoff -a
+  
+  - name: Remove swap partition
+    community.general.parted:
+      device: /dev/nvme0n1
+      number: 3
+      state: absent
+
+  - name: Remove swap from fstab
+    ansible.builtin.lineinfile:
+      path: /etc/fstab
+      state: absent
+      regexp: '.*swap.*'
+
+  - name: Parted fix unused space in GPT
+    changed_when: true
+    ansible.builtin.command:
+      cmd: parted ---pretend-input-tty /dev/nvme0n1 print
+      stdin: fix
+  
+  - name: Parted resize partition 2 to 100% of available free space
+    changed_when: true
+    ansible.builtin.command:
+      cmd: parted -s /dev/nvme0n1 resizepart 2 100%
+  
+  - name: Resize ext4 filesystem
+    changed_when: true
+    ansible.builtin.command:
+      cmd: resize2fs /dev/nvme0n1p2
+
+  - name: Reboot to apply filesystem change
+    ansible.builtin.reboot:

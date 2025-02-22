@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+# list of federates, as generated into 'fed-gen/' by name of the folder
+# in the order in which they should be spawned
+soafee_avp_demo_federates_generated:
+  - "federate__filter_and_transform__0"
+  - "federate__filter_and_transform__1"
+  - "federate__point_cloud_fusion"
+  - "federate__voxel_grid_downsampler"
+  - "federate__ray_ground_classifier"
+  - "federate__euclidean_cluster_detector"
+  - "federate__ndt_map_publisher"
+  - "federate__p2d_ndt_localizer"
+  - "federate__off_map_obstacles_filter"
+  - "federate__behavior_planner"
+  - "federate__parking_planner"
+  - "federate__lane_planner"
+  - "federate__global_planner"
+  - "federate__object_collision_estimator"
+  - "federate__lgsvl_interface"
+  - "federate__mpc_controller"
+  - "federate__robot_state_publisher"
+  - "federate__map_provider"
+  - "federate__lanelet2_visualizer"
+  - "federate__rviz2"
+
+# avp federate names formatted for convenience and compatibility with k3s
+# k3s pods and containers cannot have underscores, so replace all underscores with '-'
+# also replace the double '__' with a single '-'
+soafee_avp_demo_federates_formatted: "{{
+  soafee_avp_demo_federates_generated
+    | map('regex_replace', '__', '_')
+    | map('regex_replace', '_', '-')
+    | list }}"
+
+# k3s service / pod names, in order of bringup
+soafee_avp_demo_services: "{{
+  ['rti']
+  + (soafee_avp_demo_federates_formatted | reject('search', 'rviz2') | list)
+  + ['rviz2-lgsvl', 'avp-web-interface'] }}"

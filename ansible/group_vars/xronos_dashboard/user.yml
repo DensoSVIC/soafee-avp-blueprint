@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+# use `avp_user` if defined in the playbook or inventory,
+# otherwise default to the user for the OS / AMI
+ansible_user: "{{ avp_user | default('ubuntu') }}"

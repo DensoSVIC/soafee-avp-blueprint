@@ -1,0 +1,106 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+# use command + kubectl for scaling up and down
+# as it is significantly faster, and idempotency
+# is not needed here. kubenetes module may be
+# later used to confirm the results of an action.
+
+- name: Gather facts
+  ansible.builtin.setup:
+    gather_subset:
+      - user_dir
+
+- name: Stop k3s monitor terminal
+  ansible.builtin.import_tasks: k3s-monitor.yml
+
+- name: k3s query deployment
+  register: _k3s_deployments
+  changed_when: false
+  ansible.builtin.shell:
+    cmd: |
+      kubectl get deployment \
+        --selector user={{ ansible_user }} \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
+        --namespace {{ deployment }}-{{ ansible_user }} \
+        -o json | jq -r '.items[] | select(.status.replicas > 0) | .metadata.name'
+
+- name: k3s scale down deployments
+  with_items: "{{ _k3s_deployments.stdout_lines }}"
+  changed_when: true
+  ansible.builtin.shell:
+    cmd: |
+      kubectl scale deployment \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
+        --namespace {{ deployment }}-{{ ansible_user }} \
+        {{ item }} \
+        --replicas=0
+
+- name: Systemd user service stop avp-firefox
+  when: avp_close_firefox_on_stop
+  ansible.builtin.systemd_service:
+    scope: user
+    name: avp-firefox
+    state: stopped
+
+- name: Clear Firefox session backups
+  when: avp_close_firefox_on_stop
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/snap/firefox/common/.mozilla/firefox/avp-firefox/sessionstore-backups"
+    state: absent
+
+- name: LGSVL Simulator disconnect simulation {{ ansible_user }}
+  delegate_to: "{{ inventory_hostname }}"
+  ignore_errors: true
+  ansible.builtin.uri:
+    url: "http://localhost:8080/api/v1/clusters/disconnect/{{ ansible_user }}"
+
+- name: Systemd user service stop svlsimulator
+  ansible.builtin.systemd_service:
+    scope: user
+    name: svlsimulator
+    state: stopped
+
+- name: Get DISPLAY index
+  ansible.builtin.import_tasks: get-display-index.yml
+
+- name: xhost query access control
+  register: _xhost_query
+  changed_when: false
+  ansible.builtin.command:
+    cmd: xhost
+  environment:
+    DISPLAY: "{{ display }}"
+    XAUTHORITY: "{{ ansible_env.HOME }}/.Xauthority"
+
+- name: xhost enable access control
+  when: "'access control disabled' in _xhost_query.stdout"
+  changed_when: true
+  ansible.builtin.command:
+    cmd: xhost -
+  environment:
+    DISPLAY: "{{ display }}"
+    XAUTHORITY: "{{ ansible_env.HOME }}/.Xauthority"
+
+- name: k3s wait for pods to terminate
+  kubernetes.core.k8s:
+    state: absent
+    kind: pod
+    label_selectors:
+      - "user={{ ansible_user }}"
+    namespace: "{{ deployment }}-{{ ansible_user }}"
+    wait: true
+    delete_options:
+      gracePeriodSeconds: 2
+
+# ensure deployment exists and any previous pods are destroyed
+- name: k3s apply deployment
+  kubernetes.core.k8s:
+    state: present
+    apply: true
+    force: true
+    src: "{{ soafee_dir }}/k3s/k3s-combined-resources.yml"
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    namespace: "{{ deployment }}-{{ ansible_user }}"
+    wait: true
+    wait_timeout: 360

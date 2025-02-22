@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+
+[Unit]
+Description=AVP Firefox Web Interface
+Requires=graphical-session.target
+After=graphical-session.target
+{% if avp_render_use_nice_dcv %}
+ConditionEnvironment=DISPLAY
+ConditionEnvironment=XAUTHORITY
+{% endif %}
+
+[Service]
+Type=simple
+{% if not avp_render_use_nice_dcv %}
+Environment="DISPLAY=:1"
+Environment="XAUTHORITY={{ user_xauthority }}"
+{% endif %}
+ExecStart=firefox -P avp-firefox --new-instance --url about:blank

@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+rti_port: 15045
+rti_federation_id: 42
+rti_tag: "reactor-c-4f183a4"

@@ -1,0 +1,1063 @@
+#!/bin/bash
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+
+set -e
+set -o pipefail
+
+# usage() - print the usage of this script
+#
+function usage(){
+    echo "blueprint <command> [<command-args...>]"
+    echo ""
+    echo "general commands:"
+    echo "   help                                  print this usage message and exit"    
+    echo "   show-config                           show current configuration"
+    echo ""
+    echo "provisioning:"
+    echo "   provision [<terraform-args...>]       provision infrastructure using Terraform"
+    echo ""
+    echo "configuration:"
+    echo "   init-user                             initialize and set the active user to 'avp'"
+    echo "   configure [<ansible-args...>]         configure EC2 instances using Ansible"
+    echo ""
+    echo "AVP demo:"
+    echo "   build     [<ansible-args...>]         build AVP application"
+    echo "   start     [<ansible-args...>]         start the AVP demo"
+    echo "   stop      [<ansible-args...>]         stop avp application and associated services"
+    echo "   restart   [<ansible-args...>]         stop and then start avp application"
+    echo "   clean     [<ansible-args...>]         stop application and clean build artifacts"
+    echo ""
+    echo "teardown:"
+    echo "   deconfigure [<ansible-args...>]       deconfigure resources added by 'configure'"
+    echo "   deprovision [<terraform-args...>]     destroy all provisioned cloud resources"
+    echo ""
+    echo "instance:"
+    echo "   show-hosts                            show hostname aliases and IP addresses"
+    echo "   shell <host> [<ssh-args...>]          open an ssh session to an instance"
+    echo ""
+    echo "user:"
+    echo "   add-user  <user> [public_keyfile]     add user to instances"
+    echo "   set-user  <user> [private_keyfile]    set user for use in Ansible scripts"
+    echo "   clear-user                            clear the active user"
+    echo "   local-ssh                             append hosts to local ~/.ssh config"
+    echo "   clear-local-ssh                       clear hosts from local ~/.ssh config"
+    echo ""
+    echo "deployment management:"
+    echo "   set-deployment <deployment>           set current deployment name" 
+    echo ""
+    echo "EWAOL:"
+    echo "   ami-ewaol-build [<ansible-args...>]   build an EWAOL AMI"
+    echo ""
+}
+
+# docker image versions and parameters
+terraform_docker_image=hashicorp/terraform:1.10.5
+ansible_docker_image=xronosinc/ansible:v1.1.0
+ansible_docker_user=ubuntu
+ansible_docker_home=/home/${ansible_docker_user}
+
+# tty flags -- if running in an interactive terminal
+# pass tty flags to docker to allow answering prompts
+# disable color in terraform if not tty
+docker_tty_flags=""
+terraform_tty_flags=""
+if [ -t 1 ]; then
+    docker_tty_flags="--tty --interactive"
+else
+    terraform_tty_flags="-no-color"
+fi
+
+# ANSI color and formatting codes (conditional on interactive terminal)
+BOLD=
+RED=
+YELLOW=
+BLUE=
+GREEN=
+NC=
+if [ -t 1 ]; then
+    BOLD='\033[1m'
+    RED='\033[31m'
+    YELLOW='\033[33m'
+    BLUE='\033[34m'
+    GREEN="\033[0;32m"
+    NC='\033[0m'  # no color, resets formatting
+fi
+
+# print_error() - print an error message and its code
+# 
+# arguments:
+#   msg: message to print
+#   code: code to print
+#
+function print_error() {
+    local msg=${1:-"undefined error"}
+    local exit_code=${2:-1}
+    echo -e "${BOLD}${RED}error: ${msg} (${exit_code})${NC}"
+}
+
+# usage_erorr() - print a command invocation error followed by the usage message, then exit.
+# 
+# arguments:
+#   msg: message to print
+#
+function usage_error() {
+    print_error "$@" 1
+    echo -e "\n---\n"
+    usage
+    exit 1
+}
+
+# error() - print an error message and its code, then exit
+# 
+# arguments:
+#   msg: message to print
+#   code: code to print
+#
+function error() {
+    print_error "$@"
+    exit ${exit_code}
+}
+
+# warn() - print a warning message
+#
+# arguments:
+#   msg: message to print
+#
+function warn() {
+    local msg=${1:-"undefined warning"}
+    echo -e "${BOLD}${YELLOW}warning: ${msg}${NC}"
+}
+
+# info() - print an informative message
+#
+# arguments:
+#   msg: message to print
+#
+function info() {
+    echo -e "${BOLD}${GREEN}===> ${@}${NC}\n"
+}
+
+# get_deployment() - determine the active deployment
+# 
+# sets:
+#   deployment: the name of the active deployment
+#      value:   content of ./instances/active-deployment
+#      default: soafee
+#
+deployment=soafee
+function get_deployment() {
+    deployment=soafee
+    if [ -f ./instances/active-deployment ]; then
+        local active_deployment=$(cat ./instances/active-deployment)
+        if [ -n "${active_deployment}" ]; then
+            deployment=${active_deployment}
+        else 
+            warn "no deployment name specified in ./instances/active-deployment; using default 'soafee'"
+        fi
+    fi
+}
+
+# get_host_aliases() - read host aliases from deployment hostfile
+#
+# gets:
+#   deployment
+# 
+# sets:
+#   host_aliases: array of host aliases used by this deployment
+#
+function get_host_aliases() {
+    local hostfile="./instances/${deployment}-hosts"
+    if [ ! -f ${hostfile} ]; then
+        warn "hostfile ${hostfile} not found. no host aliases available."
+        return
+    fi
+
+    # use grep to filter out comment lines and sed to remove blank lines,
+    # then use awk to extract the alias (second field) and store each into an array
+    readarray -t host_aliases < <(grep -v '^[[:space:]]*#' "${hostfile}" | sed '/^[[:space:]]*$/d' | awk '{print $2}')
+}
+
+# get_active_user() - determine active username for instance SSH
+#
+# sets:
+#   active_user: the active username to connect to instances
+#         value: content of ./instances/${deployment}-active-user
+#       default: ""
+#
+active_user=
+function get_active_user() {
+    active_user=
+    if [ -f ./instances/${deployment}-active-user ]; then
+        active_user=$(cat ./instances/${deployment}-active-user);
+    fi
+}
+
+# get_active_ssh_keys() - determine the active private keyile for instance SSH
+# 
+# sets:
+#   active_private_key_name: base name of the private key for the active user
+#                     value: ${deployment}-${active-user}.pem
+#                   default: ${deployment}-default.pem
+#
+#   active_private_key_path: path to active key file relative to current directory
+#                     value: ./instances/${active_private_key_name}
+#                   default: ""
+#
+active_private_key_name=
+active_private_key_path=
+function get_active_ssh_keys() {
+    active_private_key_name=
+    active_private_key_path=
+
+    if [ -n "${active_user}" ] && [ -f ./instances/${deployment}-${active_user}.pem ]; then
+        active_private_key_name=${deployment}-${active_user}.pem
+    elif [[ "${active_user}" == "avp" || -z "${active_user}" ]] \
+        && [ -f ./instances/${deployment}-default.pem ]; then
+        active_private_key_name=${deployment}-default.pem
+    elif [ -n "${active_user}" ]; then
+        warn "ssh private key for user ${active_user} not found."
+    fi
+
+    if [ -n "${active_private_key_name}" ]; then
+        active_private_key_path=instances/${active_private_key_name}
+    fi
+}
+
+# write_user_ssh_config() - write a user-specific SSH configuration
+#
+# gets:
+#   ${active_user}
+#   ${active_private_key_path}
+#   ${host_aliases}
+# 
+# writes:
+#   ssh header to ./instances/${deployment}-00-ssh.config
+#   ssh configuration to ./instances/${deployment}-20-active-user.config
+#
+function write_user_ssh_config() {
+    # create a top-level configuration file that includes all others in order
+    # first hosts are defined, then active username, then cloud-init usernames.
+    # if no active user is specified, the cloud-init username will apply.
+
+    # create an SSH host configuration that will set the User property when included
+    local ssh_user_config_file=./instances/${deployment}-20-active-user.config
+    echo writing user SSH configuration file ${ssh_user_config_file}
+    echo -e "# This file is generated.\n" > ${ssh_user_config_file}
+    for alias in "${host_aliases[@]}"; do
+        echo "Host ${alias}" >> ${ssh_user_config_file}
+        if [ -n "${active_user}" ]; then
+            echo "    User ${active_user}" >> ${ssh_user_config_file}
+        fi
+        if [ -f "${active_private_key_path}" ]; then
+            echo "    IdentityFile $(realpath ${active_private_key_path})" >> ${ssh_user_config_file}
+        fi
+        echo "" >> ${ssh_user_config_file}
+    done
+
+    # create a top-level SSH config that includes hosts, active-user and cloud-init in order.
+    cat <<EOF > ./instances/${deployment}-00-ssh.config
+# This file is generated.
+
+Include $(realpath ./instances/${deployment}-10-hosts.config)
+Include $(realpath ${ssh_user_config_file})
+Include $(realpath ./instances/${deployment}-30-cloud-init-users.config)
+EOF
+}
+
+# get_ssh_auth_sock() - determine if an SSH forwarding agent is availble
+#
+# sets:
+#   ssh_auth_sock: path to the SSH agent socket
+#
+ssh_auth_sock=
+function get_ssh_auth_sock() {
+    ssh_auth_sock=
+    if [ -n "${SSH_AUTH_SOCK}" ]; then
+        ssh_auth_sock="${SSH_AUTH_SOCK}"
+        if [ "$(uname)" == "Darwin" ]; then
+            ssh_auth_sock=/run/host-services/ssh-auth.sock
+        else
+            chmod g+r ${ssh_auth_sock}
+        fi
+    fi
+}
+
+# restore_default_user() - reset the active user so that default users and keys apply
+#
+# sets:
+#   active_user: ""
+#   active_private_key_name: ./instances/${deployment}-default.pem (or "")
+#
+# deletes:
+#   - ./instances/${deployment}-active-user
+#   - ./instances/${deployment}-${active_user}.pem
+#   - ./instances/${deployment}-10-active-user.config
+#
+function restore_default_user() {
+    rm -f ./instances/${deployment}-active-user
+    rm -f ./instances/${deployment}-10-active-user.config
+    if [ -n "${active_user}" ] && [ -f ./instances/${deployment}-${active_user}.pem ]; then
+        rm -f ./instances/${deployment}-${active_user}.pem
+    fi
+
+    get_active_user
+    get_active_ssh_keys
+    write_user_ssh_config
+    ansible_set_environment
+    ansible_update_instance_volume
+}
+
+# ansible_init() - initialize ansible volumes and install requirements.
+#
+# description: installs roles and collections into cache volumes,
+# and copies instance folder into an instances volume.
+# 
+# gets:
+#   ${ANSIBLE_REQUIREMENTS_FORCE_UPDATE}: when "1", force install requirements
+#
+# creates:
+#   docker volume "xronos-ansible-cache-roles" with roles installed
+#   docker volume "xronos-ansible-cache-collections" with collections installed
+#   
+# role precedence:
+#   (1) roles in this git repo under ansible/roles
+#   (2) roles in local directory ../ansible-roles
+#   (3) (optional) roles located in ~/.ansible/roles
+#   (4) ansible cache volumes maped to /usr/share/ansible
+#
+function ansible_init() {
+    info "initializing ansible"
+    docker pull ${ansible_docker_image}
+
+    # docker volume 'xronos-ansible-cache-roles'
+    if ! (docker volume ls | grep xronos-ansible-cache-roles > /dev/null); then
+        echo creating docker volume 'xronos-ansible-cache-roles'
+        docker volume create xronos-ansible-cache-roles >/dev/null
+        docker run \
+            --rm \
+            --user root \
+            --volume xronos-ansible-cache-roles:/usr/share/ansible/roles \
+            --entrypoint /bin/bash \
+            ${ansible_docker_image} \
+            -c "chown -R ${ansible_docker_user}:${ansible_docker_user} /usr/share/ansible/roles"
+    fi
+
+    # docker volume 'xronos-ansible-cache-collections'
+    if ! (docker volume ls | grep xronos-ansible-cache-collections > /dev/null); then
+        echo creating docker volume 'xronos-ansible-cache-collections'
+        docker volume create xronos-ansible-cache-collections >/dev/null
+        docker run \
+            --rm \
+            --user root \
+            --volume xronos-ansible-cache-collections:/usr/share/ansible/collections \
+            --entrypoint /bin/bash \
+            ${ansible_docker_image} \
+            -c "chown -R ${ansible_docker_user}:${ansible_docker_user} /usr/share/ansible/collections"
+    fi
+
+    # docker volume xronos-${deployment}-instances
+    if ! (docker volume ls | grep xronos-${deployment}-instances > /dev/null); then
+        echo "creating docker volume 'xronos-${deployment}-instances'"
+        docker volume create xronos-${deployment}-instances >/dev/null
+    fi    
+
+    # install ansible role dependencies
+    local force_flag=""
+    if [ "${ANSIBLE_REQUIREMENTS_FORCE_UPDATE}" == "1" ]; then
+        force_flag="-f"
+    fi
+    echo installing ansible role requirements to 'xronos-ansible-cache-roles'
+    docker run \
+        --name xronos-ansible-${deployment}-requirements \
+        ${docker_tty_flags} \
+        --rm \
+        --volume ./ansible/requirements.yml:${ansible_docker_home}/ansible/requirements.yml:ro \
+        --volume xronos-ansible-cache-roles:/usr/share/ansible/roles \
+        --entrypoint /bin/bash \
+        ${ansible_docker_image} \
+        -c "source /environment.sh && ansible-galaxy \
+            install \
+            ${force_flag} \
+            -r ${ansible_docker_home}/ansible/requirements.yml \
+            --roles-path /usr/share/ansible/roles"
+
+    # installing ansible collection dependencies
+    echo installing ansible collection requirements
+    docker run \
+        --name xronos-ansible-${deployment}-requirements \
+        ${docker_tty_flags} \
+        --rm \
+        --volume ./ansible/requirements-collections.yml:${ansible_docker_home}/ansible/requirements-collections.yml:ro \
+        --volume xronos-ansible-cache-collections:/usr/share/ansible/collections \
+        --entrypoint /bin/bash \
+        ${ansible_docker_image} \
+        -c "source /environment.sh && ansible-galaxy \
+            collection install \
+            ${force_flag} \
+            -r ${ansible_docker_home}/ansible/requirements-collections.yml \
+            -p /usr/share/ansible/collections"
+
+    ansible_update_instance_volume
+}
+
+# ansible_set_environment() - configure Ansible environment variables and docker volumes.
+#
+# description: sets environment variables containing arguements to pass to ansible.
+#
+# local roles: if the directory "../ansible-roles" is present, it is copied into the
+# ansible docker container in a location that supersedes all other roles directories.
+# use for local development of ansible roles.
+# 
+# sets:
+#   ansible_args:        additional arguments to pass to ansible (user credentials, deployment, tags, etc)
+#   ansible_volume_map:  list of docker volume maps ("-v volume:dest") for ansible containers
+#   ansible_local_roles: the full path to the ansible-roles/ directory (if present)
+#
+ansible_args=""
+ansible_volume_map=""
+ansible_local_roles=
+function ansible_set_environment() {
+    ansible_args=""
+    ansible_volume_map=""
+    ansible_local_roles=""
+
+    # roles and cache volumes
+    ansible_volume_map="${ansible_volume_map} --volume xronos-ansible-cache-roles:/usr/share/ansible/roles"
+    ansible_volume_map="${ansible_volume_map} --volume xronos-ansible-cache-collections:/usr/share/ansible/collections"
+    ansible_volume_map="${ansible_volume_map} --volume xronos-${deployment}-instances:${ansible_docker_home}/instances:ro"
+
+    # map ansible roles from local filesystem
+    ansible_local_roles=
+    if [ -d ${PWD}/../ansible-roles ]; then
+        ansible_local_roles=$(realpath ${PWD}/../ansible-roles)
+        # map to ~/.ansible/roles which has higher precedence than /usr/share/ansible/roles
+        ansible_volume_map="${ansible_volume_map} --volume ${ansible_local_roles}:${ansible_docker_home}/.ansible/roles:ro"
+    fi
+
+    # ansible playbooks and roles from this repository
+    if [ ! -d ./ansible ]; then
+        errro "directory './ansible' not found" 30
+    fi
+    ansible_volume_map="${ansible_volume_map} --volume ./ansible:${ansible_docker_home}/ansible:ro"
+
+    # ansible user
+    if [ -n "${active_user}" ]; then
+        ansible_args="${ansible_args} --extra-vars avp_user=${active_user}"
+    fi
+    ## ansible SSH key
+    if [ -n "${active_private_key_path}" ]; then
+        ansible_args="${ansible_args} --private-key ${ansible_docker_home}/${active_private_key_path}"
+    fi
+
+    ## SSH agent -- if an SSH agent is available, map it into the container
+    if [ -n "${ssh_auth_sock}" ]; then
+        ansible_volume_map="${ansible_volume_map} --volume ${ssh_auth_sock}:${ansible_docker_home}/.ssh/host-agent.sock"
+    fi
+
+    # deployment
+    ansible_args="${ansible_args} --extra-vars deployment=${deployment}"
+    # inventory
+    ansible_args="${ansible_args} --inventory ${ansible_docker_home}/instances/${deployment}-inventory.yml"
+}
+
+# ansible_update_instance_volume() - copy local instances to volume 'xronos-${deployment}-instances'
+#
+# writes:
+#   docker volume 'xronos-${deployment}-instances'
+#
+function ansible_update_instance_volume() {
+    # copy instance configuration into the container (the contents may change so do this every execution)
+    echo "updating instance information in docker volume 'xronos-${deployment}-instances'"
+    
+    if [ ! -d ./instances ]; then
+        error "directory 'instances' not found" 2
+    fi
+    if [ ! "$(ls -A ./instances/${deployment}-* 2>/dev/null)" ]; then
+        error "instance files not found in $(realpath ./instances)" 2
+    fi
+
+    docker run \
+        --rm \
+        --user root \
+        --volume ./instances:/instances:ro \
+        --volume xronos-${deployment}-instances:${ansible_docker_home}/instances \
+        --entrypoint /bin/bash \
+        ${ansible_docker_image} \
+        -c "rm -rf ${ansible_docker_home}/instances/* \
+            && cp -r /instances/* ${ansible_docker_home}/instances \
+            && chown -R ${ansible_docker_user}:${ansible_docker_user} ${ansible_docker_home}/instances"
+}
+
+# run_terraform() - run a terraform command
+# 
+# arguments:
+#   <apply/destroy>
+#   [<terraform-args...>]
+#
+function run_terraform() {
+    docker pull ${terraform_docker_image}
+    local arg_command=""
+    # first argument is the terraform command and is required
+    local arg_command=${1}
+    if [ -z "${arg_command}" ]; then
+        usage_error "no terraform command provided"
+    fi
+    shift
+    args="${arg_command} --var deployment=${deployment}"
+    if [ $# -ne 0 ]; then
+        args="${args} $@"
+        shift $#
+    fi
+    mkdir -p instances
+    echo "running terraform init"
+    docker run \
+        ${docker_tty_flags} \
+        --rm \
+        --name ${deployment}-terraform \
+        --user ${UID}:${UID} \
+        --volume ./terraform:/terraform \
+        --volume ./instances:/instances \
+        --workdir /terraform \
+        ${terraform_docker_image} \
+        init \
+        --backend-config "path=workspace/${deployment}.tfstate" \
+        ${terraform_tty_flags}
+    echo "running terraform ${args} ${terraform_tty_flags}"
+    docker run \
+        ${docker_tty_flags} \
+        --rm \
+        --name ${deployment}-terraform \
+        --user ${UID}:${UID} \
+        --volume ./terraform:/terraform \
+        --volume ./instances:/instances \
+        --workdir /terraform \
+        ${terraform_docker_image} \
+        ${args} \
+        ${terraform_tty_flags}
+
+    ansible_update_instance_volume
+}
+
+# run_init_user() - initialize the default user 'avp' on all instances.
+#
+# description: initializes ansible then configures a new user on instances.
+#
+# arguements:
+#   [<ansible-args...>]
+#
+# description: This command resets the active user to "", a special case where
+#   ansible will use the default hostname as defined group_vars.
+# 
+# sets:
+#   active_user:             avp
+#   active_private_key_name: ${deployment}-avp.pem
+#   active_private_key_path: ./instances/${deployment}-avp.pem
+#
+# deletes:
+#   ./instances/${deployment}-20-active-user.config
+function run_init_user() {
+    restore_default_user
+    show_config
+    run_add_user avp \
+        ./instances/${deployment}-default.pub \
+        --extra-vars password="linguafranca" \
+        --extra-vars github_username="" \
+        $@
+    info "created user 'avp' with password 'linguafranca'"
+
+    run_set_user avp ./instances/${deployment}-default.pem
+}
+
+# run_add_user() - add a user to remote systems and authorize SSH public keys
+#
+# arguments:
+#   username
+#   [<ansible arguments...>]
+#
+# writes:
+#   username of the active user: ./instances/${deployment}-active-user
+#
+function run_add_user() {
+    # first argument is the username and is required
+    local arg_user=${1}
+    if [ -z "${arg_user}" ]; then
+        usage_error "no username provided"
+    fi
+    shift
+    info "configuring user '${arg_user}'"
+
+    # second argument is the public keyfile and is optional
+    local public_keyfile=""
+    local user_public_keyfile_arg=""
+    if [ -n "${1}" ]; then
+        public_keyfile=${1}
+        shift
+        if [ ! -f "${public_keyfile}" ]; then
+            error "public keyfile ${public_keyfile} not found" 3
+        fi
+        local keyname=${deployment}-${arg_user}.pub
+        local keypath=${ansible_docker_home}/instances/${keyname}
+
+        # copy keys to instances folder and set permissions
+        echo "copying ${keyname} to docker volume 'xronos-${deployment}-instances'"
+        docker run \
+            --rm \
+            --user root \
+            --volume ${public_keyfile}:${ansible_docker_home}/${keyname}:ro \
+            --volume xronos-${deployment}-instances:${ansible_docker_home}/instances \
+            --entrypoint /bin/bash \
+            ${ansible_docker_image} \
+            -c "cp -r ${ansible_docker_home}/${keyname} ${keypath} \
+                && chown ${ansible_docker_user}:${ansible_docker_user} ${keypath}"
+        user_public_keyfile_arg="--extra-vars user_public_keyfile=${keypath}"
+    fi
+
+    docker run \
+        --name xronos-ansible-${deployment}-adduser \
+        --rm \
+        --interactive \
+        --tty \
+        ${ansible_volume_map} \
+        --workdir ${ansible_docker_home}/ansible \
+        ${ansible_docker_image} \
+        --extra-vars username=${arg_user} \
+        ${ansible_args} \
+        ${user_public_keyfile_arg} \
+        configure-adduser.yml \
+        $@
+}
+
+# run_set_user() - set the active user for instance SSH and ansible
+# 
+# arguements:
+#   username
+#   [private_key_file]
+#
+# sets:
+#   active_user: active user for SSH and ansible commands
+#   active_private_key_name: name of the active SSH private key
+#   active_private_key_path: relative path to active SSH private key
+#   ansible_args: updates ansible arguments with active user credentials
+# 
+# writes:
+#   active username to ./instances/${deployment}-active-user
+#   copies private key to ./instances/${deployment}-${active_user}.pem
+#
+function run_set_user() {
+    # first argument is the username and is required
+    local arg_user=${1}
+    if [ -z "${arg_user}" ]; then
+        error "no username provided" 3
+    fi
+    shift
+
+    # second argument is the private keyfile and is optional
+    local private_keyfile=""
+    if [ -n "${1}" ]; then
+        private_keyfile=${1}
+        shift
+        if [ ! -f "${private_keyfile}" ]; then
+            error "SSH private key ${private_keyfile} not found" 3
+        fi
+        local instances_pemfile="./instances/${deployment}-${arg_user}.pem"
+        if [ ! -f "${instances_pemfile}" ] || ! diff "${private_keyfile}" "${instances_pemfile}" >/dev/null; then
+            echo "copying ${private_keyfile} to ${instances_pemfile}"
+            cp -f "${private_keyfile}" "${instances_pemfile}"
+        fi
+    fi
+
+    # store username for later executions of this script
+    echo ${arg_user} > ./instances/${deployment}-active-user
+
+    # update environment variables to apply the new active user
+    get_active_user
+    get_active_ssh_keys
+
+    echo setting permissions on ssh.config files and keys
+    chmod 0600 ./instances/${deployment}-*.pem 2>/dev/null || true
+    chmod 0600 ./instances/${deployment}-*.pub 2>/dev/null || true
+    chmod 0600 ./instances/${deployment}-*ssh.config 2>/dev/null || true
+    write_user_ssh_config
+
+    # copy keys into docker instance volume used by ansible
+    ansible_update_instance_volume
+
+    info "active user is now '${active_user}' with key '${active_private_key_name:-'(none)'}'"
+}
+
+# run_configure() - configure hosts with ansible
+#
+function run_configure() {
+    # run configure playbook
+    info "configuring hosts"
+    docker run \
+        ${docker_tty_flags} \
+        --name ${deployment}-ansible \
+        --rm \
+        ${ansible_volume_map} \
+        --workdir ${ansible_docker_home}/ansible \
+        ${ansible_docker_image} \
+        ${ansible_args} \
+        configure.yml \
+        $@
+}
+
+# run_avp() - run an AVP demo command
+#
+# arguments:
+#   <build/start/stop/restart/clean>
+#   [<ansible_args...>]
+#
+function run_avp() {
+    if [ -z "${1}" ]; then
+        error "no AVP command provided" 3
+    fi
+    info "running AVP demo command '${1#--tags=}'"
+
+    # run avp playbook
+    docker run \
+        ${docker_tty_flags} \
+        --name ${deployment}-ansible \
+        --rm \
+        ${ansible_volume_map} \
+        --workdir ${ansible_docker_home}/ansible \
+        ${ansible_docker_image} \
+        ${ansible_args} \
+        avp.yml \
+        $@
+}
+
+# run_ami_ewaol_build() - build an EWAOL AMI
+# 
+function run_ami_ewaol_build() {
+    run_shell ${deployment}-avp-builder "cd soafee/ewaol-image && source ./ewaol-build-ami.sh"
+}
+
+
+# run_deconfigure() - deconfigure resources previosly configured by ansible
+# 
+# arguments:
+#   [<ansible_args...>]
+#
+function run_deconfigure() {
+    # run deconfigure playbook
+    info "de-configuring"
+    docker run \
+        ${docker_tty_flags} \
+        --name ${deployment}-ansible \
+        --rm \
+        ${ansible_volume_map} \
+        --workdir ${ansible_docker_home}/ansible \
+        ${ansible_docker_image} \
+        ${ansible_args} \
+        deconfigure.yml \
+        $@
+}
+
+# run_shell() - open an SSH shell on an instance
+# 
+# arguments:
+#    hostname
+#    [<ssh-args...>]   default: "bash -l"
+#
+function run_shell() {
+    if [ -z "${1}" ]; then
+        error "no hostname provided"
+    fi
+    local hostname=${1}
+    shift
+    local ssh_args=${1:-"bash -l"}
+
+    local ssh_config_arg=
+    if [ -f ${deployment}-00-ssh.config ]; then
+        ssh_config_arg="-F ${deployment}-00-ssh.config"
+    fi
+
+    info "ssh shell on '${hostname}' with command '${ssh_args}'"
+    ssh \
+        -t \
+        -i ${active_private_key_path} \
+        ${ssh_config_arg} \
+        ${hostname} \
+        ${ssh_args}
+}
+
+# run_local_ssh_config() - link instances folder to ~/.ssh/config.d
+#
+# description: the effect of this function is to enable `ssh <host>`
+#    to work transparently, resolving the host public IP address
+#    and the path to the private keyfile for the host.
+#
+# writes:
+#   creates directory ~/.ssh/config.d
+#   prepends "Include" directives to ~/.ssh/config
+#   
+function run_local_ssh_config() {
+    # configure SSH from local to remote host
+    mkdir -p ~/.ssh/config.d
+    if [ ! -L ~/.ssh/config.d/instances ]; then
+        echo linking instances folder to ~/.ssh/config.d
+        ln -s $(realpath ./instances) ~/.ssh/config.d/instances
+    else
+        echo ~/.ssh/config.d already contains link to instances folder
+    fi
+    
+    if [ ! -f ~/.ssh/config ]; then
+        touch ~/.ssh/config
+        chmod 0600 ~/.ssh/config
+    fi
+    grep -qxF 'Include config.d/**/*ssh.config' ~/.ssh/config \
+        || (echo -e 'Include config.d/**/*ssh.config\n' \
+        | cat - ~/.ssh/config > ssh_config.tmp \
+        && mv ssh_config.tmp ~/.ssh/config)
+}
+
+# run_clear_local_ssh_config() - unlink instances folder from ~/.ssh/config.d
+# 
+# writes:
+#   deletes ~/.ssh/config.d/instances
+#
+function run_clear_local_ssh_config() {
+    # clear instances symlink
+    if [ -L ~/.ssh/config.d/instances ]; then
+        echo clearing hosts from ~/.ssh/config.d
+        rm ~/.ssh/config.d/instances
+    else
+        echo hosts are not present in ~/.ssh/config.d
+    fi
+}
+
+# run_set_deployment() - set the active deployment name
+# 
+# arguments:
+#   deployment: name of the active deployment
+#
+# sets:
+#   deployment: name of the active deployment
+# 
+# writes:
+#   active deployment name to ./instances/active-deployment
+#
+function run_set_deployment() {
+    if [ -z "${1}" ]; then
+        error "no deployment name provided" 3
+    fi
+    echo setting active deployment ${1}
+    echo "${1}" > ./instances/active-deployment
+    get_deployment
+}
+
+# show_hosts() - print hostname and IP addresses
+# 
+# reads:
+#   ./instances/${deployment}-hosts
+#
+function show_hosts() {
+    local hostfile="./instances/${deployment}-hosts"
+    if [ ! -f ${hostfile} ]; then
+        error "hostfile ${hostfile} not found." 3
+    fi
+
+    # use grep to filter out comment lines and sed to remove blank lines,
+    # then use awk to extract the alias (second field) and IP address (first field)
+    grep -v '^[[:space:]]*#' "${hostfile}" | sed '/^[[:space:]]*$/d' | awk '{print $2, $1}'
+}
+
+# show_config() - print the current configuration
+# 
+function show_config() {
+    echo -e "active configuration:"
+    echo "-----------"
+    echo -e "command:\t${ARG_COMMAND}"
+    echo -e -n "command args:\t"
+    print_args 2 ${@}
+    echo -e "deployment:\t${deployment}"
+    echo -e "active user:\t${active_user}"
+    echo -e "active keyfile:\t${active_private_key_name}"
+    echo -e "ssh agent:\t${ssh_auth_sock}"
+    echo -e -n "volumes:\t"
+    print_args 2 ${ansible_volume_map}
+    echo -e -n "ansible args:\t"
+    print_args 2 ${ansible_args}
+    echo ""
+}
+
+# print_header() - print the header for this application
+#
+function print_header() {
+    echo ""
+    echo -e "${BLUE}${BOLD}SOAFEE Blueprint - Autonomous Valet Parking Demo"
+    echo -e "    by DENSO International America, Inc.${NC}\n"
+}
+
+# print_args() - print formatted arguments to the console
+#
+# description: outputs indented arguments.
+#
+# human-authored: nooope.
+# 
+# arguments:
+#    indent_count: number of tab indentations per line
+#    args: arguments to print (first is printed without indentation)
+#
+function print_args() {
+    # if no arguments, output empty line and return
+    [[ $# -eq 0 ]] && { echo ""; return; }
+
+    # first parameter: indent count; build indent string of tabs
+    local indent_count="${1}"
+    local indent
+    indent=$(printf '\t%.0s' $(seq 1 "${indent_count}"))
+    shift
+
+    # remaining parameters: join into a single string
+    local arg_str="${*}"
+    [[ -z "${arg_str}" ]] && { echo ""; return; }
+
+    # trim leading whitespace
+    arg_str=$(echo "${arg_str}" | sed -E 's/^[[:space:]]+//')
+
+    # insert a separator '|' before tokens that start with '-' (if preceded by whitespace)
+    local formatted
+    formatted=$(echo "${arg_str}" | sed -E 's/[[:space:]]+(-[^[:space:]]+)/| \1/g')
+
+    # split on '|' into an array; tokens now represent individual arguments
+    IFS='|' read -ra tokens <<< "${formatted}"
+
+    local first=1 token
+    # iterate over tokens, trimming each and printing with proper indent
+    for token in "${tokens[@]}"; do
+        token=$(echo "${token}" | sed -E 's/^[[:space:]]+|[[:space:]]+$//g')
+        if [[ -n "${token}" ]]; then
+            if (( first )); then
+                # print first token with no indent
+                printf "%s\n" "${token}"
+                first=0
+            else
+                # print subsequent tokens with indent
+                printf "%s%s\n" "${indent}" "${token}"
+            fi
+        fi
+    done
+}
+
+
+#############
+# main program
+#############
+
+get_deployment
+get_host_aliases
+get_active_user
+get_active_ssh_keys
+get_ssh_auth_sock
+ansible_set_environment
+
+# first argument to this script is the command and is required
+ARG_COMMAND=${1}
+if [ -z "${ARG_COMMAND}" ]; then
+    usage_error "no command provided"
+fi
+shift
+
+# run command
+case ${ARG_COMMAND} in
+    provision)
+        print_header
+        show_config $@
+        run_terraform apply $@
+        ansible_init
+        ;;
+    configure)
+        print_header
+        show_config $@
+        run_configure $@
+        ;;
+    init-user)
+        print_header
+        run_init_user $@
+        ;;
+    build)
+        print_header
+        show_config $@
+        run_avp --tags=build $@
+        ;;
+    start)
+        print_header
+        show_config $@
+        run_avp --tags=start $@
+        ;;
+    stop)
+        print_header
+        show_config $@
+        run_avp --tags=stop $@
+        ;;
+    restart)
+        print_header
+        show_config $@
+        run_avp --tags=stop,start $@
+        ;;
+    clean)
+        print_header
+        show_config $@
+        run_avp --tags=clean $@
+        ;;
+    deconfigure)
+        print_header
+        show_config $@
+        run_deconfigure $@
+        ;;
+    deprovision)
+        print_header
+
+        # active user cleanup
+        run_clear_local_ssh_config
+        restore_default_user
+        run_terraform destroy $@
+        ;;
+    add-user)
+        print_header
+        show_config $@
+        run_add_user $@
+        ;;
+    set-user)
+        run_set_user $@
+        ;;
+    clear-user)
+        restore_default_user
+        ;;
+    show-hosts)
+        show_hosts
+        ;;
+    shell)
+        run_shell "$@"
+        ;;
+    local-ssh)
+        run_local_ssh_config
+        ;;
+    clear-local-ssh)
+        run_clear_local_ssh_config
+        ;;
+    set-deployment)
+        run_set_deployment $@
+        ;;
+    ami-ewaol-build)
+        print_header 
+        show_config $@
+        run_ami_ewaol_build $@
+        ;;
+    show-config)
+        print_header
+        show_config $@
+        exit 0
+        ;;
+    help)
+        print_header
+        usage
+        exit 0
+        ;;
+    *)
+        usage_error "unknown command '${ARG_COMMAND}'"
+        ;;
+esac

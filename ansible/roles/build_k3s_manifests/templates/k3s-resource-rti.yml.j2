@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+
+###############
+# RTI
+###############
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rti
+  namespace: {{ deployment }}-{{ ansible_user }}
+  labels:
+    app: rti
+    user: {{ ansible_user }}
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: rti
+      user: {{ ansible_user }}
+  template:
+    metadata:
+      labels:
+        app: rti
+        user: {{ ansible_user }}
+    spec:
+      hostname: rti
+      nodeName: "{{ deployment }}-avp-ewaol"
+      terminationGracePeriodSeconds: 3
+      imagePullSecrets:
+      - name: "{{ deployment }}-{{ ansible_user }}-ecr"
+      containers:
+      - name: rti
+        image: xronosinc/rti:{{ rti_tag }}
+        imagePullPolicy: IfNotPresent
+        args: ["-i", "1", "-n", "{{ soafee_avp_demo_federates_formatted | length }}", "-p", "15045"]
+        tty: true
+        stdin: true
+        ports:
+        - name: rti
+          containerPort: 15045
+          protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rti
+  namespace: {{ deployment }}-{{ ansible_user }}
+  labels:
+    app: rti
+    user: {{ ansible_user }}
+spec:
+  selector:
+    app: rti
+    user: {{ ansible_user }}
+  ports:
+  - name: rti
+    port: 15045
+    targetPort: rti
+    protocol: TCP

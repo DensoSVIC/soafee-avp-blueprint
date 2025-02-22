@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+soafee_dir: "{{ ansible_env.HOME }}/soafee"
+
+# path to the clone of the soafee-avp-demo repository
+soafee_avp_demo_path: "{{ soafee_dir }}/soafee-avp-demo"
+
+# path to src-gen folder containing all generated federates
+soafee_avp_demo_federate_path: "{{ soafee_avp_demo_path }}/avp/fed-gen/Autoware/src-gen"

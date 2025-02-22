@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Query DCV display index
+  when: avp_render_use_nice_dcv | default(host_use_nice_dcv) | default(cloud_instance) | default(false)
+  register: _dcv_display
+  changed_when: false
+  ansible.builtin.shell:
+    cmd: "dcv describe-session {{ ansible_user }} | grep 'X display' | awk '{print $3}'"
+
+- name: Set fact display
+  ansible.builtin.set_fact:
+    display: "{{ _dcv_display.stdout | default(ansible_env.DISPLAY) | default(':0') }}"

@@ -1,0 +1,137 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Gather facts
+  hosts: avp_render, avp_ewaol, avp_builder
+  tags: [never, clean, build]
+  gather_facts: false
+  tasks:
+    - ansible.builtin.setup:
+
+
+##################
+#   stop
+##################
+
+- hosts: avp_render
+  tags: [never, stop]
+  gather_facts: false
+  roles:
+    - name: stop
+      role: stop
+      vars:
+        avp_close_firefox_on_stop: true
+
+
+##################
+#   clean
+##################
+
+- hosts: avp_render, avp_ewaol, avp_builder
+  tags: [never, clean]
+  gather_facts: false
+  ignore_errors: true
+  roles:
+    - name: clean
+      role: clean
+
+
+##################
+#   build
+##################
+
+- hosts: avp_builder, avp_render, avp_ewaol
+  tags: [never, build]
+  gather_facts: false
+  tasks:
+    - name: Docker login to container registry
+      ansible.builtin.import_tasks: tasks/ecr-docker-login.yml
+
+- hosts: avp_render
+  tags: [never, build]
+  gather_facts: false
+  tasks:
+    - name: k3s authenticate with container registry
+      ansible.builtin.import_tasks: tasks/ecr-k3s-login.yml
+
+- hosts: avp_render, avp_builder, avp_ewaol
+  tags: [never, build]
+  gather_facts: false
+  tasks:
+    - name: Git clone soafee-avp-demo version {{ soafee_avp_demo_version }}
+      ansible.builtin.git:
+        repo: "{{ soafee_avp_demo_repo_uri }}"
+        version: "{{ soafee_avp_demo_version }}"
+        accept_newhostkey: true
+        dest: "{{ soafee_avp_demo_path }}"
+        force: true
+
+- hosts: avp_builder, avp_render
+  tags: [never, build]
+  gather_facts: false
+  roles:
+    - name: build_openadkit
+      role: build_openadkit
+
+    - name: build_lingua_franca
+      role: build_lingua_franca
+
+- hosts: avp_render, avp_ewaol
+  tags: [never, build]
+  gather_facts: false
+  roles:
+    - name: pull_openadkit
+      role: pull_openadkit
+
+- hosts: avp_builder
+  tags: [never, build]
+  gather_facts: false
+  roles:
+    - name: build_federate_images
+      role: build_federate_images
+
+- hosts: avp_render
+  tags: [never, build]
+  gather_facts: false
+  roles:
+    - name: build_render_images
+      role: build_render_images
+
+    - name: build_k3s_manifests
+      role: build_k3s_manifests
+      vars:
+        _k3s_use_gpu: false
+
+- hosts: avp_ewaol
+  tags: [never, build]
+  gather_facts: false
+  roles:
+    - name: pull_federate_images
+      role: pull_federate_images
+
+- hosts: avp_render
+  tags: [never, build]
+  gather_facts: false
+  tasks:
+    - name: k3s apply deployment
+      kubernetes.core.k8s:
+        state: present
+        apply: true
+        force: true
+        src: "{{ soafee_dir }}/k3s/k3s-combined-resources.yml"
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+        namespace: "{{ deployment }}-{{ ansible_user }}"
+        wait: true
+        wait_timeout: 360
+
+
+##################
+#   start
+##################
+
+- hosts: avp_render
+  tags: [never, start]
+  gather_facts: false
+  roles:
+    - name: start
+      role: start

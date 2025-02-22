@@ -1,0 +1,37 @@
+---
+all:
+  vars:
+    ansible_private_role_vars: true
+    ansible_python_interpreter: auto_silent
+    any_errors_fatal: true
+    deployment: "onsite"
+    aws_region: ""         # TODO: replace with your AWS region if using AWS
+    ami_s3_bucket: ""      # TODO: replace with your S3 bucket if building EWAOL AMI
+    ecr_registry_id:  ""   # TODO: replace with your ECR registry account ID (often your own AWS account ID)
+    ecr_registry_uri: ""   # TODO: replace with your ECR registry URI if using ECR
+    k3s_cluster_cidr: "10.42.0.0/16"
+    k3s_service_cidr: "10.43.0.0/16"
+  children:
+    xronos_dashboard:
+      hosts:
+        onsite-xronos-dashboard:
+          ansible_ssh_host: "onsite-xronos-dashboard"  # TODO: add the IP address or URI of your host
+          cloud_instance: false
+    avp_render:
+      hosts:
+        onsite-avp-render:
+          ansible_ssh_host: "onsite-avp-render"  # TODO: add the IP address or URI of your host
+          ubuntu_desktop_configure_wallpaper: false
+          cloud_instance: false
+          host_use_nice_dcv: false
+          nvidia_driver_install: false
+    avp_builder:
+      hosts:
+        onsite-avp-builder:
+          ansible_ssh_host: "onsite-avp-builder"  # TODO: add the IP address or URI of your host
+          cloud_instance: false
+    avp_ewaol:
+      hosts:
+        onsite-avp-ewaol:
+          ansible_ssh_host: "onsite-avp-ewaol"  # TODO: add the IP address or URI of your host
+          cloud_instance: false

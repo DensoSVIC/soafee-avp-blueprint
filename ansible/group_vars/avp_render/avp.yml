@@ -1,0 +1,5 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+avp_close_firefox_on_stop: false
+avp_k3s_use_gpu: false

@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Git clone soafee-avp-demo version {{ soafee_avp_demo_version }}
+  ansible.builtin.git:
+    repo: "{{ soafee_avp_demo_repo_uri }}"
+    version: "{{ soafee_avp_demo_version }}"
+    accept_newhostkey: true
+    dest: "{{ soafee_avp_demo_path }}"
+    force: true
+
+- name: Download parking lot maps to soafee-avp-demo/Autoware-support
+  ansible.builtin.unarchive:
+    remote_src: true
+    src: https://soafee-avp-demo.s3.us-east-1.amazonaws.com/Autoware-support.tar.gz
+    dest: "{{ soafee_avp_demo_path }}/Autoware-support/"
+    creates: "{{ soafee_avp_demo_path }}/Autoware-support/autonomoustuff_parking_lot.pcd"
+
+- name: Create directory soafee-avp-demo/AutowareAuto/src/urdf/lexus_rx_450h_description/meshes
+  ansible.builtin.file:
+    path: "{{ soafee_avp_demo_path }}/AutowareAuto/src/urdf/lexus_rx_450h_description/meshes"
+    state: directory
+
+- name: Download Lexus RX model to soafee-avp-demo/AutowareAuto/src/urdf/lexus_rx_450h_description/meshes
+  ansible.builtin.unarchive:
+    remote_src: true
+    src: https://soafee-avp-demo.s3.us-east-1.amazonaws.com/LexusRX.tar.gz
+    dest: "{{ soafee_avp_demo_path }}/AutowareAuto/src/urdf/lexus_rx_450h_description/meshes/"
+    creates: "{{ soafee_avp_demo_path }}/AutowareAuto/src/urdf/lexus_rx_450h_description/meshes/LexusRX.obj"

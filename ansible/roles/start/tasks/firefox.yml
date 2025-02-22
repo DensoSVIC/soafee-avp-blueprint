@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+# start Firefox service early so it has time to start up before opening tabs
+- name: Systemd start user service avp-firefox
+  ansible.builtin.systemd_service:
+    scope: user
+    name: avp-firefox
+    state: started
+  register: firefox
+
+- name: Wait for Firefox to start
+  when: firefox.changed
+  ansible.builtin.wait_for:
+    timeout: 5
+
+- name: Start AVP web interface
+  ansible.builtin.import_tasks: avp-web-interface.yml
+
+- name: Open SORA-SVL web interface in Firefox
+  when: firefox.changed
+  ignore_errors: true
+  timeout: 30
+  environment:
+    XAUTHORITY: "{{ ansible_env.HOME }}/.Xauthority"
+    DISPLAY: "{{ display }}"
+  ansible.builtin.command:
+    cmd: firefox -P avp-firefox --new-tab --url http://localhost:8080
+
+- name: Open SORA-SVL docs in Firefox
+  when: firefox.changed
+  ignore_errors: true
+  timeout: 30
+  environment:
+    XAUTHORITY: "{{ ansible_env.HOME }}/.Xauthority"
+    DISPLAY: "{{ display }}"
+  ansible.builtin.command:
+    cmd: firefox -P avp-firefox --new-tab --url http://localhost:8081
+
+# always open this even if firefox was open, since the container address could change
+- name: Open avp-web-interface in Firefox
+  ignore_errors: true
+  timeout: 30
+  environment:
+    XAUTHORITY: "{{ ansible_env.HOME }}/.Xauthority"
+    DISPLAY: "{{ display }}"
+  ansible.builtin.command:
+    cmd: firefox -P avp-firefox --new-tab --url http://{{ avp_web_interface_ip }}:8000
+
+- name: Open Grafana in Firefox
+  when: firefox.changed
+  ignore_errors: true
+  timeout: 30
+  environment:
+    XAUTHORITY: "{{ ansible_env.HOME }}/.Xauthority"
+    DISPLAY: "{{ display }}"
+  ansible.builtin.command:
+    cmd: firefox -P avp-firefox --new-tab --url http://{{ xronos_dashboard_host_private }}:3000

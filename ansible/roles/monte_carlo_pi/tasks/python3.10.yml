@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Add deadsnakes PPA repository
+  become: true
+  ansible.builtin.apt_repository:
+    repo: ppa:deadsnakes/ppa
+    state: present
+
+- name: Install Python3.10
+  become: true
+  ansible.builtin.apt:
+    name:
+      - python3.10-dev
+      - python3.10-venv

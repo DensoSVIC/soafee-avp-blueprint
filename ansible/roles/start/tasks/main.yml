@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Gather facts
+  ansible.builtin.setup:
+    gather_subset:
+      - user_dir
+
+- name: Get DISPLAY index
+  ansible.builtin.import_tasks: get-display-index.yml
+
+- name: xhost query access control
+  register: _xhost_query
+  changed_when: false
+  ansible.builtin.command:
+    cmd: xhost
+  environment:
+    DISPLAY: "{{ display }}"
+    XAUTHORITY: "{{ ansible_env.HOME }}/.Xauthority"
+
+# xhost access control must be disabled to allow docker/k3s to access the display on this host
+- name: xhost disable access control
+  when: "'access control enabled' in _xhost_query.stdout"
+  changed_when: true
+  ansible.builtin.command:
+    cmd: xhost +
+  environment:
+    DISPLAY: "{{ display }}"
+    XAUTHORITY: "{{ ansible_env.HOME }}/.Xauthority"
+
+- name: Start LGSVL Simulator
+  ansible.builtin.import_tasks: lgsvl.yml
+
+- name: Start k3s services
+  ansible.builtin.import_tasks: k3s.yml
+
+- name: Start firefox
+  ansible.builtin.import_tasks: firefox.yml

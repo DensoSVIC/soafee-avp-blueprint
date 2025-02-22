@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+
+---
+- name: Install Python3.10
+  ansible.builtin.import_tasks: python3.10.yml
+
+- name: Git clone xronos-inc/example-monte-carlo-pi
+  ansible.builtin.git:
+    repo: "https://github.com/xronos-inc/example-monte-carlo-pi"
+    accept_newhostkey: true
+    dest: "{{ soafee_dir }}/example-monte-carlo-pi"
+    version: "{{ montecarlo_version }}"
+    force: true
+
+- name: Python install requirements
+  ansible.builtin.pip:
+    requirements: "{{ soafee_dir }}/example-monte-carlo-pi/requirements.txt"
+    virtualenv: "{{ soafee_dir }}/example-monte-carlo-pi/.venv"
+    virtualenv_python: python3.10  # LF is limited to python 3.10
+
+- name: Copy web links to VS Code project folder
+  ansible.builtin.template:
+    src: "links.md"
+    dest: "{{ soafee_dir }}/example-monte-carlo-pi/"

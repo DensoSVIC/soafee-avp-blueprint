@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+
+# generated ec2 instance information
+/instances
+
+# any occurrence of a private key
+*.pem
+
+# OS stuff
+.DS_Store

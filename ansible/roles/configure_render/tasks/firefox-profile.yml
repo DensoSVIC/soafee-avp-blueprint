@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Firefox create profile {{ _firefox_profile }}
+  ansible.builtin.command:
+    cmd: firefox --headless --createprofile {{ _firefox_profile }}
+    creates: "{{ ansible_env.HOME }}/snap/firefox/common/.mozilla/firefox/*{{ _firefox_profile }}"
+
+- name: Query location of generated profile
+  register: profiles
+  ansible.builtin.find:
+    file_type: directory
+    paths: "{{ ansible_env.HOME }}/snap/firefox/common/.mozilla/firefox/"
+    # note the . prefix before the name, which indicates the profile has a random prefix
+    patterns: "*.{{ _firefox_profile }}"
+    depth: 1
+
+- name: Move Firefox profile to folder {{ _firefox_profile }}
+  when: profiles.matched > 0
+  ansible.builtin.command:
+    cmd: mv {{ profiles.files[0].path }} {{ ansible_env.HOME }}/snap/firefox/common/.mozilla/firefox/{{ _firefox_profile }}
+    creates: "{{ ansible_env.HOME }}/snap/firefox/common/.mozilla/firefox/{{ _firefox_profile }}"
+
+- name: Set {{ _firefox_profile }} profile path in Firefox profiles.ini
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_env.HOME }}/snap/firefox/common/.mozilla/firefox/profiles.ini"
+    regexp: '{{ "^Path=[a-zA-Z0-9]+\." ~ _firefox_profile ~ "$" }}'
+    line: "Path={{ _firefox_profile }}"

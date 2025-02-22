@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+{% set base_port = 7400 + 10 %}
+
+###############
+# federate {{ _federate_name }}
+###############
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ _federate_name }}
+  namespace: {{ deployment }}-{{ ansible_user }}
+  labels:
+    app: {{ _federate_name }}
+    user: {{ ansible_user }}
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: {{ _federate_name }}
+      user: {{ ansible_user }}
+  template:
+    metadata:
+      labels:
+        app: {{ _federate_name }}
+        user: {{ ansible_user }}
+    spec:
+      hostname: {{ _federate_name }}
+      nodeName: {{ deployment }}-avp-ewaol
+      terminationGracePeriodSeconds: 3
+      imagePullSecrets:
+      - name: {{ deployment }}-{{ ansible_user }}-ecr
+      containers:
+      - name: {{ _federate_name }}
+        image: {{ ecr_user_repo_uri }}:{{ _federate_name }}
+        imagePullPolicy: IfNotPresent
+        tty: true
+        stdin: true
+        env:
+        - name: LF_TELEGRAF_HOST_NAME
+          value: {{ avp_ewaol_host_private }}
+        ports:
+{% for ii in range(4) %}
+        - name: dds-{{ "{:02d}".format(base_port + ii) }}
+          containerPort: {{ base_port + ii }}
+          protocol: UDP
+{% endfor %}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ _federate_name }}
+  namespace: {{ deployment }}-{{ ansible_user }}
+  labels:
+    app: {{ _federate_name }}
+    user: {{ ansible_user }}
+spec:
+  selector:
+    app: {{ _federate_name }}
+    user: {{ ansible_user }}
+  ports:
+{% for ii in range(4) %}
+  - name: dds-{{ "{:02d}".format(base_port + ii) }}
+    port: {{ base_port + ii }}
+    targetPort: dds-{{ "{:02d}".format(base_port + ii) }}
+    protocol: UDP
+{% endfor %}

@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Query k3s terminal monitor
+  ansible.builtin.import_tasks: k3s-monitor-process.yml
+
+- name: Stop k3s terminal monitor
+  when: k3s_monitor_running
+  ignore_errors: true
+  ansible.builtin.command: |
+    kill -s SIGINT {{ k3s_monitor_pid }}
+
+- name: Remove k3s terminal monitor PID file
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.cache/k3s-monitor.pid"
+    state: absent

@@ -1,0 +1,99 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Apt install Yocto and Kas dependencies
+  become: true
+  ansible.builtin.apt:
+    pkg:
+      - gawk
+      - wget
+      - git
+      - diffstat
+      - unzip
+      - texinfo
+      - gcc
+      - build-essential
+      - chrpath
+      - socat
+      - cpio
+      - xz-utils
+      - debianutils
+      - iputils-ping
+      - libegl1-mesa-dev
+      - libsdl1.2-dev
+      - xterm
+      - mesa-common-dev
+      - make
+      - jq
+      - yq
+      - zstd
+      - liblz4-tool
+      - qemu-utils
+      - expect
+
+- name: Apt install managed python dependencies
+  become: true
+  ansible.builtin.apt:
+    pkg:
+      - python3-sphinx
+      - python3-sphinx-rtd-theme
+      - python3-yaml
+      - python3-git
+      - python3-jinja2
+      - python3-pip
+      - python3-pexpect
+      - python3-subunit
+
+- name: Pip install Kas {{ ewaol_kas_version if ewaol_kas_version else '' }}
+  ansible.builtin.pip:
+    break_system_packages: true
+    name:
+      - kas{{ '==' ~ ewaol_kas_version if ewaol_kas_version else '' }}
+      - pylint
+      - git-remote-codecommit
+
+- name: Check ewaol_distro_codename is set
+  ansible.builtin.assert:
+    that: ewaol_distro_codename
+
+- name: Create directory {{ soafee_dir }}/ewaol-image
+  ansible.builtin.file:
+    path: "{{ soafee_dir }}/ewaol-image"
+    state: directory
+    mode: u=rwx,g=rx,o=
+
+- name: Create directory {{ soafee_dir }}/ewaol-image/kas
+  ansible.builtin.file:
+    path: "{{ soafee_dir }}/ewaol-image/kas"
+    state: directory
+    mode: u=rwx,g=rx,o=
+
+- name: Create directory {{ soafee_dir }}/ewaol-image/kas/machines
+  ansible.builtin.file:
+    path: "{{ soafee_dir }}/ewaol-image/kas/machines"
+    state: directory
+    mode: u=rwx,g=rx,o=
+
+- name: Deploy EWAOL machine configuration
+  ansible.builtin.template:
+    src: ewaol-graviton2-ami.yaml
+    dest: "{{ soafee_dir }}/ewaol-image/kas/machines/ewaol-graviton2-ami.yaml"
+    mode: u=rw,g=rw,o=
+
+- name: Create directory {{ soafee_dir }}/ewaol-image/kernelconfig
+  ansible.builtin.file:
+    path: "{{ soafee_dir }}/ewaol-image/kernelconfig"
+    state: directory
+    mode: u=rwx,g=rx,o=
+
+- name: Deploy EWAOL kernel configuration
+  ansible.builtin.copy:
+    src: gravitonKernelConfigs.cfg
+    dest: "{{ soafee_dir }}/ewaol-image/kernelconfig/"
+    mode: u=rw,g=r,o=
+
+- name: Deploy AMI build script
+  ansible.builtin.template:
+    src: ewaol-build-ami.sh
+    dest: "{{ soafee_dir }}/ewaol-image/ewaol-build-ami.sh"
+    mode: u=rwx,g=rx,o=

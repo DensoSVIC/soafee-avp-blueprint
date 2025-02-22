@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Create ECR docker token refresh cron job
+  when: ansible_facts['os_family'] == "Debian"
+  ansible.builtin.cron:
+    name: "{{ deployment }} refresh docker ECR token"
+    minute: "0"
+    hour: "*/12"
+    job: >
+      /bin/bash -c 'aws ecr get-login-password --region {{ aws_region }}
+      | docker login --username AWS --password-stdin {{ ecr_registry_uri }}'

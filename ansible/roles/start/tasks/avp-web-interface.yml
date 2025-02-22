@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Fetch Kubernetes service information for avp-web-interface
+  register: service_info
+  failed_when: service_info.resources | length != 1
+  kubernetes.core.k8s_info:
+    kind: Service
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    namespace: "{{ deployment }}-{{ ansible_user }}"
+    label_selectors:
+      - "app=avp-web-interface"
+      - "user={{ ansible_user }}"
+    name: avp-web-interface
+
+- name: Extract selector from service information
+  ansible.builtin.set_fact:
+    service_selector: "{{ service_info.resources[0].spec.selector }}"
+
+- name: Convert selector to label selector string
+  ansible.builtin.set_fact:
+    label_selector: >-
+      {{
+        service_selector | dict2items | map(attribute='key') | zip(service_selector | dict2items | map(attribute='value')) | map('join', '=') | join(',')
+      }}
+
+- name: Fetch pods matching the service selector
+  register: pods_info
+  kubernetes.core.k8s_info:
+    kind: Pod
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    namespace: "{{ deployment }}-{{ ansible_user }}"
+    label_selectors:
+      - "{{ label_selector }}"
+      - "app=avp-web-interface"
+      - "user={{ ansible_user }}"
+
+- name: Extract pod names from pod information
+  ansible.builtin.set_fact:
+    pod_names: "{{ pods_info.resources | map(attribute='metadata.name') | list }}"
+
+- name: Extract IP address from service information
+  ansible.builtin.set_fact:
+    avp_web_interface_ip: "{{ service_info.resources[0].status.loadBalancer.ingress[0].ip | default(service_info.resources[0].spec.clusterIP) }}"
+
+- name: Wait for avp-web-interface container to start
+  register: pod_info
+  kubernetes.core.k8s_info:
+    kind: Pod
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    namespace: "{{ deployment }}-{{ ansible_user }}"
+    name: "{{ pod_names[0] }}"
+    label_selectors:
+      - "app=avp-web-interface"
+      - "user={{ ansible_user }}"
+  until: >
+    pod_info.resources[0].status.containerStatuses
+    | selectattr('name', 'equalto', 'avp-web-interface')
+    | map(attribute='state')
+    | selectattr('running', 'defined')
+    | list
+  retries: 10
+  delay: 1
+  ignore_errors: true
+
+# replace URL part between 'ws://' and ':9090' in script.js with the k3s IP address
+# this is needed because the web socket server is run inside the docker container, and the
+# websocket client is run in the user's browser outside of the k3s network
+- name: Set websocket bind address {{ avp_web_interface_ip }} in avp-web-interface
+  ansible.builtin.command:
+    cmd: >-
+      kubectl exec
+      --kubeconfig /etc/rancher/k3s/k3s.yaml
+      --namespace {{ deployment }}-{{ ansible_user }}
+      {{ pod_names[0] }}
+      --container avp-web-interface
+      -- /bin/bash -c "sed -i 's|ws://.*:9090|ws://{{ avp_web_interface_ip }}:9090|g' /app/web/script.js"

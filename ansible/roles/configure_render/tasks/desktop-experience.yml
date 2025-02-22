@@ -1,0 +1,121 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Query services
+  ansible.builtin.service_facts:
+
+- name: Stop and disable error reporting service service
+  with_items: "{{
+      (['apport'] if 'apport' in services else [])
+      + (['whoopsie'] if 'whoopsie' in services else [])
+    }}"
+  notify: "schedule_reboot"
+  become: true
+  ansible.builtin.service:
+    name: apport
+    state: stopped
+    enabled: false
+
+- name: Stat apport configuration
+  register: _apport_config
+  ansible.builtin.stat:
+    path: /etc/default/apport
+
+- name: Disable apport configuration
+  when: _apport_config.stat.exists
+  become: true
+  notify: "schedule_reboot"
+  ansible.builtin.lineinfile:
+    path: /etc/default/apport
+    regexp: '^enabled='
+    line: 'enabled=0'
+    state: present
+
+- name: Apt remove whoopsie and apport
+  become: true
+  notify: "schedule_reboot"
+  ansible.builtin.apt:
+    state: absent
+    purge: true
+    pkg:
+      - apport
+      - whoopsie
+
+- name: Query gnome technical problems setting
+  register: _technical_problems_result
+  changed_when: false
+  ansible.builtin.command: |
+    gsettings get org.gnome.desktop.privacy report-technical-problems
+  
+- name: Gnome disable technical reports
+  when: _technical_problems_result.stdout != "false"
+  notify: "schedule_reboot"
+  ansible.builtin.command: |
+    gsettings set org.gnome.desktop.privacy report-technical-problems false
+
+# removing these packages will remove the ubuntu-desktop metapackage
+# but not its dependencies. if the desktop metapackge is installed
+# again this will re-install the packages below.
+- name: Apt uninstall automatic updates
+  become: true
+  notify: "schedule_reboot"
+  ansible.builtin.apt:
+    state: absent
+    purge: true
+    autoremove: true
+    pkg:
+      - ubuntu-release-upgrader-gtk
+      - ubuntu-release-upgrader-core
+      - update-manager
+      - update-manager-core
+      - update-notifier
+      - update-notifier-common
+
+- name: Apt uninstall gnome-initial-setup
+  become: true
+  notify: "schedule_reboot"
+  ansible.builtin.apt:
+    state: absent
+    purge: true
+    pkg: gnome-initial-setup
+
+- name: Apt unintall unused desktop features
+  become: true
+  notify: "schedule_reboot"
+  ansible.builtin.apt:
+    state: absent
+    purge: true
+    pkg:
+      - gnome-shell-extension-desktop-icons-ng
+      - gnome-keyring
+      - gnome-keyring-pkcs11
+      - libpam-gnome-keyring
+
+- name: Ubuntu desktop query desktop idle delay
+  register: _idle_delay
+  changed_when: false
+  ansible.builtin.command:
+    cmd: gsettings get org.gnome.desktop.session idle-delay
+
+- name: Ubuntu desktop disable idle delay
+  when: _idle_delay.stdout != "uint32 0"
+  ansible.builtin.command:
+    cmd: gsettings set org.gnome.desktop.session idle-delay 0
+
+# crash reports may occur during first bringup of a virtual desktop
+# or during reconfiguration of services. as these are one-time and
+# related to configuring, they may be removed to prevent a crash
+# report from being the first window that appears on initial startup.
+- name: Clear /var/crash/
+  become: true
+  changed_when: false
+  ansible.builtin.command:
+    cmd: rm -rf /var/crash/*
+
+# the scheduled reboot is needed to clear any automatic update dialogs,
+# system error reporting dialogs, or initial setup dialogs that were
+# opened when Gnome launched. this prevents the negative user experience
+# of opening a remote session for the first time only to see an error
+# that can otherwise be disregarded.
+- name: Perform scheduled reboot
+  ansible.builtin.import_tasks: reboot.yml

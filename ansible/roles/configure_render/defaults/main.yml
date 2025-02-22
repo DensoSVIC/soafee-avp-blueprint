@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+configure_helm_version:
+configure_nvidia_gpu_operator_version:
+configure_sora_svl_version:
+configure_vscode_version:
+configure_vscode_extensions: []
+
+configure_k3s_gpu_operator: false

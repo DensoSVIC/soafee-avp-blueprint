@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Get DISPLAY index
+  ansible.builtin.import_tasks: get-display-index.yml
+
+- name: Read LG SVL Simulator port
+  ansible.builtin.import_tasks: get-lgsvl-port.yml
+
+- name: Generate k3s manifests for render services
+  loop:
+    - rti
+    - avp-web-interface
+    - rviz2-lgsvl
+  ansible.builtin.template:
+    src: k3s-resource-{{ item }}.yml.j2
+    dest: "{{ soafee_dir }}/k3s/k3s-resource-{{ item }}.yml"
+    mode: u=rw,g=rw,o=
+  vars:
+    xauthority: "{{ ansible_env.HOME }}/.Xauthority"
+
+- name: Generate k3s manifests for federate services
+  loop: "{{ soafee_avp_demo_federates_formatted | reject('search', 'rviz2') }}"
+  loop_control:
+    loop_var: _federate_name   # referened in the jinja2 template
+  ansible.builtin.template:
+    src: k3s-resource-federate.yml.j2
+    dest: "{{ soafee_dir }}/k3s/k3s-resource-{{ _federate_name }}.yml"
+    mode: u=rw,g=rw,o=
+  vars:
+    xauthority: "{{ ansible_env.HOME }}/.Xauthority"
+
+- name: Generate k3s combined manifest
+  ansible.builtin.assemble:
+    remote_src: true
+    src: "{{ soafee_dir }}/k3s"
+    regexp: "k3s-resource-.*\\.yml"
+    dest: "{{ soafee_dir }}/k3s/k3s-combined-resources.yml"
+    delimiter: "\n"
+    mode: u=rw,g=rw,o=

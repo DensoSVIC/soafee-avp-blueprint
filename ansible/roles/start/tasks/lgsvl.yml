@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Systemd start user service svlsimulator
+  ansible.builtin.systemd_service:
+    scope: user
+    name: svlsimulator
+    state: started
+
+- name: Wait for SVL API service to become available
+  delegate_to: "{{ inventory_hostname }}"
+  ansible.builtin.uri:
+    url: "http://localhost:8080/api/v1/clusters/simulatorStatus"
+    return_content: true
+  register: api
+  until: api.status == 200 and api.json.keys() | length > 0
+  retries: 5
+  delay: 2
+
+- name: Wait for SVL simulation to be alive
+  delegate_to: "{{ inventory_hostname }}"
+  ansible.builtin.uri:
+    url: "http://localhost:8080/api/v1/clusters/simulatorStatus"
+    return_content: true
+  register: api
+  until: (ansible_user in api.json)
+          and api.json[ansible_user]['alive']
+  retries: 5
+  delay: 2
+
+- name: Set SVL simulation to API mode
+  delegate_to: "{{ inventory_hostname }}"
+  ansible.builtin.uri:
+    url: "http://localhost:8080/api/v1/clusters/start/apiOnly/{{ ansible_user }}"

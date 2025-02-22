@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+profile: production
+
+skip_list:
+  - name[casing]
+  - name[template]
+  - name[no-role-prefix]
+  - ignore-errors

@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Docker build federate-rviz2
+  community.docker.docker_image_build:
+    name: "{{ ecr_user_repo_uri }}"
+    tag: "federate-rviz2"
+    path: "{{ soafee_avp_demo_federate_path }}/federate__rviz2"
+    rebuild: always
+    shm_size: 4G
+
+- name: Docker build render images
+  with_items:
+    - lgsvl-bridge
+    - avp-web-interface
+  community.docker.docker_image_build:
+    name: "{{ ecr_user_repo_uri }}"
+    tag: "{{ item }}"
+    path: "{{ soafee_avp_demo_path }}"
+    dockerfile: "{{ soafee_avp_demo_path }}/{{ item }}/Dockerfile"
+    rebuild: always
+    shm_size: 4G
+
+- name: Docker push render images
+  with_items:
+    - federate-rviz2
+    - lgsvl-bridge
+    - avp-web-interface
+  community.docker.docker_image:
+    source: local
+    name: "{{ ecr_user_repo_uri }}"
+    tag: "{{ item }}"
+    push: true
+
+- name: containerd load render images
+  with_items:
+    - federate-rviz2
+    - lgsvl-bridge
+    - avp-web-interface
+  become: true
+  ansible.builtin.command:
+    cmd: >
+      /usr/local/bin/k3s
+      ctr --namespace k8s.io
+      images pull
+      --user AWS:{{ ecr_password }}
+      {{ ecr_user_repo_uri }}:{{ item }}

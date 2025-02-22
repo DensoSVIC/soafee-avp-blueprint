@@ -1,0 +1,148 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- hosts: all
+  gather_facts: true
+  any_errors_fatal: true
+  vars_prompt:
+    - name: password
+      prompt: "Password to set for user {{ username }}"
+      private: true
+      unsafe: true
+
+    - name: github_username
+      prompt: "Import keys from GitHub username (blank to skip)"
+      private: false
+
+  tasks:
+    # in case of the remote system being recently spawned, wait for ssh
+    - name: Wait for SSH
+      ansible.builtin.wait_for_connection:
+        timeout: 360
+
+    - name: Create Ansible tmp directory for user 'root'
+      become: true
+      ansible.builtin.file:
+        path: "~/.ansible/tmp"
+        mode: 0700
+        state: directory
+        recurse: true
+
+    - name: Create Ansible tmp directory for current SSH user
+      ansible.builtin.file:
+        path: "{{ ansible_env.HOME }}/.ansible/tmp"
+        mode: 0700
+        state: directory
+        recurse: true
+
+    - name: Create Ansible tmp directory for inventory user
+      when: ansible_user != ansible_env.USER
+      become: true
+      become_user: "{{ ansible_user }}"
+      ansible.builtin.file:
+        path: "{{ ansible_env.HOME }}/.ansible/tmp"
+        mode: 0700
+        state: directory
+        recurse: true
+
+    - name: Check that SSH keys will be configured
+      ignore_errors: true
+      ansible.builtin.assert:
+        that: (github_username) or (user_public_keyfile is defined and user_public_keyfile | length > 0)
+        success_msg: "One or more SSH keys will be added to authorized users."
+        fail_msg: "No SSH keys will be added to authorized users."
+        quiet: true
+
+    - name: Add user '{{ username }}'
+      become: true
+      ansible.builtin.user:
+        name: "{{ username }}"
+        append: true
+        groups:
+          - adm
+          - sudo
+        password: "{{ (password | length > 0) | ternary(
+          password | password_hash('sha512', 'NaCl'),
+          '!' ) }}"  # '!' means locked / disabled password
+        shell: /bin/bash
+        update_password: always
+
+    # don't use become_user here, as it will automatically create the
+    # tmp directory and produces a warning that it should have been
+    # configured otherwise.
+    # 
+    # hard-code the path /home/username here as 'getent' is not on all systems
+    # and slurping the password file gets messy
+    - name: Create Ansible tmp directory for user '{{ username }}'
+      become: true
+      ignore_errors: true
+      ansible.builtin.file:
+        path: "/home/{{ username }}/.ansible/tmp"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: 0700
+        state: directory
+        recurse: true
+
+    # use command instead of getent (getent not present on EWAOL)
+    - name: Slurp /etc/group
+      register: remote_groups
+      ansible.builtin.slurp:
+        src: /etc/group
+
+    - name: Add group 'docker' to user '{{ username }}'
+      when: "'docker:' in (remote_groups['content'] | b64decode)"
+      become: true
+      ansible.builtin.user:
+        name: "{{ username }}"
+        groups:
+          - docker
+        append: true
+
+    - name: Stat localhost SSH public keyfile '{{ user_public_keyfile | basename }}'
+      when: user_public_keyfile is defined and user_public_keyfile | length > 0
+      register: keyfile_stat
+      delegate_to: localhost
+      connection: local
+      failed_when: not keyfile_stat.stat.exists
+      ansible.builtin.stat:
+        path: "{{ user_public_keyfile }}"
+
+    - name: Read localhost SSH public keyfile '{{ user_public_keyfile | basename }}'
+      when: user_public_keyfile is defined and user_public_keyfile | length > 0
+      ansible.builtin.set_fact:
+        _user_key: "{{ lookup('file', user_public_keyfile) | trim }}"
+
+    - name: Get GitHub keys {{ ("for user " ~ github_username) if github_username else '' }}
+      ansible.builtin.set_fact:
+        _github_keys: "{{ 
+            ( lookup('url', 'https://github.com/' ~ github_username ~ '.keys').split(',')
+            ) if github_username
+            else []
+         }}"
+
+    # keys need to be combined when calling authorized_keys, otherwise two separate calls
+    # (one for github, one for the local file) introduce conflicting order in the authorized
+    # key file, which is not idempotent.    
+    - name: Set fact _combined_keys
+      ansible.builtin.set_fact:
+        _combined_keys: "{{ ([_user_key] + _github_keys) | unique | sort }}"
+
+    - name: Add authorized keys for user '{{ username }}'
+      when: _combined_keys
+      become: true
+      become_user: "{{ username }}"
+      ansible.posix.authorized_key:
+        user: "{{ username }}"
+        key: "{{ _combined_keys | join('\n') }}"
+        state: present
+
+    - name: Append password-less sudoers with user '{{ username }}'
+      become: true
+      community.general.sudoers:
+        name: "{{ username }}"
+        user: "{{ username }}"
+        commands: ALL
+        host: ALL
+        runas: ALL:ALL
+        nopassword: true

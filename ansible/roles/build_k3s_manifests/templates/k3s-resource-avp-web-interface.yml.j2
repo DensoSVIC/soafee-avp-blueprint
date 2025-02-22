@@ -1,0 +1,79 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+{% set base_port = 7400 + 10 %}
+
+###############
+# avp web interface
+###############
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: avp-web-interface
+  namespace: {{ deployment }}-{{ ansible_user }}
+  labels:
+    app: avp-web-interface
+    user: {{ ansible_user }}
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: avp-web-interface
+      user: {{ ansible_user }}
+  template:
+    metadata:
+      labels:
+        app: avp-web-interface
+        user: {{ ansible_user }}
+    spec:
+      nodeName: {{ deployment }}-avp-render
+      hostname: avp-web-interface
+      terminationGracePeriodSeconds: 3
+      imagePullSecrets:
+      - name: {{ deployment }}-{{ ansible_user }}-ecr
+      containers:
+      - name: avp-web-interface
+        image: {{ ecr_user_repo_uri }}:avp-web-interface
+        imagePullPolicy: IfNotPresent
+        tty: true
+        stdin: true
+        ports:
+        - name: http-server
+          containerPort: 8000
+          protocol: TCP
+        - name: ros-wbskt
+          containerPort: 9090
+          protocol: TCP
+{% for ii in range(4) %}
+        - name: dds-{{ "{:02d}".format(base_port + ii) }}
+          containerPort: {{ base_port + ii }}
+          protocol: UDP
+{% endfor %}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: avp-web-interface
+  namespace: {{ deployment }}-{{ ansible_user }}
+  labels:
+    app: avp-web-interface
+    user: {{ ansible_user }}
+spec:
+  selector:
+    app: avp-web-interface
+    user: {{ ansible_user }}
+  ports:
+  - name: http-server
+    port: 8000
+    targetPort: http-server
+    protocol: TCP
+  - name: ros-wbskt
+    port: 9090
+    targetPort: ros-wbskt
+    protocol: TCP
+{% for ii in range(4) %}
+  - name: dds-{{ "{:02d}".format(base_port + ii) }}
+    port: {{ base_port + ii }}
+    targetPort: dds-{{ "{:02d}".format(base_port + ii) }}
+    protocol: UDP
+{% endfor %}

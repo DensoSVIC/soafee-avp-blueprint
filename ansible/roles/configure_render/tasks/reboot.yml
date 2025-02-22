@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers
+
+- name: Query restart required
+  register: _stat_result
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+
+- name: Reboot
+  when: _stat_result.stat.exists
+  become: true
+  ansible.builtin.reboot:

@@ -1,0 +1,335 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+
+#############
+# Connect & gather facts
+#############
+- hosts: all
+  tags: [always, facts]
+  gather_facts: false
+  tasks:
+    # in case of the remote system being recently spawned, wait for ssh
+    - name: Wait for SSH
+      ansible.builtin.wait_for_connection:
+        connect_timeout: 5
+        sleep: 1
+        timeout: 360
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
+
+#############
+# Common
+#############
+
+- hosts: avp_builder, avp_render, avp_ewaol, xronos_dashboard
+  tags: [always, common]
+  gather_facts: false
+  tasks:
+    - name: Stat ~/.cache
+      register: _cache_folder_query
+      ansible.builtin.stat:
+        path: "{{ ansible_env.HOME }}/.cache"
+
+    - name: Create ~/.cache
+      when: not _cache_folder_query.stat.exists
+      ansible.builtin.file:
+        path: "{{ ansible_env.HOME }}/.cache"
+        state: directory
+        mode: u=rwx,g=,o=
+
+    - name: Set hostname to match inventory hostname
+      when: avp_cloud_instance | default(false)
+      register: _hostname
+      become: true
+      ansible.builtin.hostname:
+        name: "{{ inventory_hostname }}"
+          
+    - name: Write /etc/hostname
+      when: avp_cloud_instance | default(false)
+      become: true
+      register: _hostname_file
+      ansible.builtin.copy:
+        dest: /etc/hostname
+        content: "{{ inventory_hostname }}"
+        force: true
+
+    - name: Reboot to apply hostname change
+      when: (_hostname is defined and _hostname.changed)
+            or (_hostname_file is defined and _hostname_file.changed)
+      become: true
+      ansible.builtin.reboot:
+
+
+- hosts: avp_builder, avp_render, xronos_dashboard
+  tags: [always, common]
+  gather_facts: false
+  roles:
+    - name: xronos_ubuntu_common_ansible
+      role: xronos_ubuntu_common_ansible
+      vars:
+        ubuntu_apt_upgrade: never
+        ubuntu_trim_motd: true
+        ubuntu_disable_unattended_upgrades: true
+        ubuntu_snapshot: 20250206T040000Z
+        ubuntu_python_version: 3.12.3-0ubuntu2
+
+    - name: xronos_aws_cli_ansible
+      role: xronos_aws_cli_ansible
+      vars:
+        aws_cli_version: 2.23.6
+
+    - name: xronos_docker_ansible
+      role: xronos_docker_ansible
+      vars:
+        docker_version: 5:27.5.1-1~ubuntu.24.04~noble
+        docker_buildx_version: 0.20.0-1~ubuntu.24.04~noble
+        docker_compose_version: 2.32.4-1~ubuntu.24.04~noble
+        python3_docker_version: 5.0.3-1ubuntu1.1
+
+
+#############
+# EWAOL
+#############
+
+# configure EWAOL instance before it is used in any roles, since
+# it needs some filesystem configuration and prerequisites
+
+- hosts: avp_ewaol
+  tags: [always, configure_ewaol]
+  gather_facts: false
+  roles:
+    - name: configure_ewaol
+      role: configure_ewaol
+
+
+#############
+# k3s
+#############
+
+- hosts: avp_render
+  tags: [always, k3s]
+  gather_facts: false
+  roles:
+    - name: xronos_k3s_server_ansible
+      role: xronos_k3s_server_ansible
+      vars:
+        xronos_k3s_server_version: v1.31.5+k3s1
+        xronos_k3s_server_python_module_version: 32.0.0
+        xronos_k3s_server_token: linguafranca
+        xronos_k3s_server_cluster_cidr: "{{ k3s_cluster_cidr }}"
+        xronos_k3s_server_service_cidr: "{{ k3s_service_cidr }}"
+
+- hosts: avp_ewaol
+  tags: [always, k3s]
+  gather_facts: false
+  roles:
+    - name: xronos_k3s_agent_ansible
+      role: xronos_k3s_agent_ansible
+      vars:
+        xronos_k3s_client_api_endpoint: "https://{{ avp_render_host_private }}:6443"
+        xronos_k3s_client_version: v1.31.5+k3s1
+        xronos_k3s_client_token: linguafranca
+
+
+#############
+# Ubuntu Desktop
+#############
+
+- hosts: avp_render
+  tags: [always, desktop]
+  gather_facts: false
+  roles:
+    - name: xronos_nvidia_drivers_ansible
+      role: xronos_nvidia_drivers_ansible
+      vars:
+        nvidia_driver_install: true
+        nvidia_install_container: "{{ avp_k3s_use_gpu }}"
+        nvidia_driver_type: grid
+        nvidia_grid_version: 550.144.03
+        nvidia_grid_release: 17.5
+    
+    - name: xronos_ubuntu_desktop_ansible
+      role: xronos_ubuntu_desktop_ansible
+      vars:
+        ubuntu_desktop_version: 1.539.2
+        ubuntu_desktop_reinstall: false
+        ubuntu_desktop_configure_x11_nvidia: true
+        ubuntu_desktop_disable_wayland: "{{ host_use_nice_dcv }}"
+
+    - name: xronos_nice_dcv_ansible
+      when: host_use_nice_dcv
+      role: xronos_nice_dcv_ansible
+      vars:
+        nice_dcv_major_version: 2024.0
+        nice_dcv_build: 18131
+
+
+#############
+# LFC
+#############
+
+- hosts: avp_builder, avp_render
+  tags: [always, lfc]
+  gather_facts: false
+  roles:
+    - name: xronos_lfc_ansible
+      role: xronos_lfc_ansible
+      vars:
+        lfc_install_cmake: true
+        lfc_install_rti: true
+        lfc_version: 0.9.0
+        lfc_cmake_version: 3.28.3-1build7
+        lfc_openjdk_jre_version: 17.0.13+11-2ubuntu1~24.04
+        lfc_rti_commit: 4f183a4
+
+
+#############
+# Dashboard
+#############
+
+- hosts: xronos_dashboard
+  tags: [always, dashboard]
+  gather_facts: false
+  pre_tasks:
+    - name: Deploy hostfile with dashboard hosts
+      become: true
+      ansible.builtin.blockinfile:
+        path: /etc/hosts
+        append_newline: true
+        prepend_newline: true
+        block: "{{ lookup('ansible.builtin.file', '../instances/' ~ deployment ~ '-hosts') }}"
+
+  roles:
+    - name: xronos_influxdb_ansible
+      role: xronos_influxdb_ansible
+      vars:
+        influxdb_admin_password: "{{ secret_influxdb_admin_password }}" 
+        influxdb_admin_token: "{{ secret_influxdb_admin_token }}"
+        influxdb_version: 2.7.11
+
+    - name: xronos_grafana_ansible
+      role: xronos_grafana_ansible
+      vars:
+        # this is the hostname of the InfluxDB container with in the docker network
+        grafana_influxdb_url: "http://{{ xronos_dashboard_host_private }}:8086"
+        grafana_influxdb_token: "{{ secret_influxdb_admin_token }}"
+        grafana_admin_password: "{{ secret_grafana_admin_password }}"
+        grafana_version: 11.5.0
+
+
+#############
+# Telegraf
+#############
+
+- hosts: avp_render, avp_ewaol
+  tags: [always, telegraf]
+  gather_facts: false
+  pre_tasks:
+    - name: Deploy hostfile with dashboard hosts
+      become: true
+      ansible.builtin.blockinfile:
+        path: /etc/hosts
+        append_newline: true
+        prepend_newline: true
+        block: "{{ lookup('ansible.builtin.file', '../instances/' ~ deployment ~ '-hosts') }}"
+
+  roles:
+    - name: xronos_telegraf_ansible
+      role: xronos_telegraf_ansible
+      become: "{{ inventory_hostname in groups['avp_ewaol'] }}"
+      vars: 
+        telegraf_influxdb_bucket: "dashboard"
+        telegraf_influxdb_org: "{{ deployment }}"
+        telegraf_influxdb_token: "{{ secret_influxdb_admin_token }}"
+        telegraf_influxdb_url: "http://{{ xronos_dashboard_host_private }}:8086"
+        telegraf_version: 1.33.1
+
+
+#############
+# EWAOL AMI builder
+#############
+
+- hosts: avp_builder
+  tags: [always, ami]
+  gather_facts: false
+  roles:
+    - name: ewaol_image_builder
+      role: ewaol_image_builder
+      vars:
+        ewaol_distro_codename: scarthgap
+        ewaol_kas_version: 4.7
+
+
+#############
+# Example: Monte Carlo Pi Estimator
+#############
+
+- hosts: avp_render
+  tags: [always, example_monte_carlo]
+  gather_facts: false
+  roles:
+    - name: monte_carlo_pi
+      role: monte_carlo_pi
+      vars:
+        montecarlo_dashboard_host: "{{ xronos_dashboard_host_private }}"
+        montecarlo_version: v1.1.0
+
+- hosts: xronos_dashboard
+  tags: [always, example_monte_carlo]
+  gather_facts: false
+  tasks:
+    - name: Copy Monte Carlo dashboard into Grafana dashboards
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/xronos-inc/example-monte-carlo-pi/main/grafana/example-monte-carlo-pi.json
+        dest: "/opt/{{ deployment }}/grafana/dashboards/"
+
+
+#############
+# Example: AVP
+#############
+
+- hosts: avp_builder
+  tags: [always, example_avp, configure_ecr]
+  gather_facts: false
+  roles:
+    - name: configure_ecr
+      role: configure_ecr
+
+- hosts: avp_builder, avp_render, avp_ewaol
+  tags: [always, example_avp, configure_common]
+  gather_facts: false
+  roles:
+    - name: configure_common
+      role: configure_common
+
+- hosts: avp_render
+  tags: [always, example_avp, configure_render]
+  gather_facts: false
+  vars:
+    avp_render_use_nice_dcv: "{{ host_use_nice_dcv | default(avp_cloud_instance) }}"
+  roles:
+    - name: xronos_sora_svl_ansible
+      role: xronos_sora_svl_ansible
+      vars:
+        sora_svl_version: "{{ avp_sora_svl_version }}"
+
+    - name: xronos_lgsvl_simulator_ansible
+      role: xronos_lgsvl_simulator_ansible
+      vars:
+        lgsvl_use_remote_display: "{{ avp_render_use_nice_dcv }}"
+
+    - name: configure_render
+      role: configure_render
+      vars:
+        configure_helm_version: 3.17.0
+        configure_nvidia_gpu_operator_version: 24.9.2
+        configure_vscode_version: 1.97.0-1738713410
+        configure_vscode_extensions:
+          - ms-vscode.cpptools@1.23.5
+          - twxs.cmake@0.0.17
+          - lf-lang.vscode-lingua-franca@0.9.0
+          - redhat.vscode-yaml@1.15.0
+          - ms-azuretools.vscode-docker@1.29.4
+        configure_k3s_gpu_operator: "{{ avp_k3s_use_gpu }}"

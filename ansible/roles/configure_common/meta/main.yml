@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+
+galaxy_info:
+  role_name: configure_common
+  company: Xronos, Inc.
+  author: Jeff C. Jensen
+  description: "Ansible role to configure all instances for the Autoware.Auto AVP demo."
+  license: proprietery
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - all
+collections:
+  - community.docker

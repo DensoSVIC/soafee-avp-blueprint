@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: containerd pull openadkit images
+  become: true
+  ansible.builtin.command:
+    cmd: >
+      /usr/local/bin/k3s
+      ctr --namespace k8s.io
+      images pull
+      --user AWS:{{ ecr_password }}
+      {{ ecr_user_repo_uri }}:openadkit-{{ ansible_architecture }}
+
+- name: containerd tag image openadkit:latest
+  become: true
+  changed_when: false   # the previous task indicates if this changed
+  ansible.builtin.command:
+    cmd: >
+      /usr/local/bin/k3s
+      ctr --namespace k8s.io
+      images tag
+      --force
+      {{ ecr_user_repo_uri }}:openadkit-{{ ansible_architecture }}
+      openadkit:latest

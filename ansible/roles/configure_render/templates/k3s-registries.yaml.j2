@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+
+mirrors:
+  {{ ecr_registry_uri }}:
+    endpoint:
+      - "https://{{ ecr_registry_uri }}"
+configs:
+  {{ ecr_registry_uri }}:
+    auth:
+      username: AWS
+      password: ""

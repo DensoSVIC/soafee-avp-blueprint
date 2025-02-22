@@ -1,0 +1,4 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+_configure_render_sora_svl_tag: "{{ ('v' ~ configure_sora_svl_version) if configure_sora_svl_version else 'latest' }}"

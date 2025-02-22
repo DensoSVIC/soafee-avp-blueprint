@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Configure user {{ ansible }}
+  ansible.builtin.import_tasks: user.yml
+
+- name: Configure filesystem
+  ansible.builtin.import_tasks: filesystem.yml
+
+- name: Configure network buffer size
+  ansible.builtin.import_tasks: sysctl-net-rmem.yml
+
+- name: Configure ECR
+  ansible.builtin.import_tasks: ecr.yml
+
+- name: Docker login to container registry
+  ansible.builtin.import_tasks: ecr-docker-login.yml
+
+- name: Configure AVP source repository
+  ansible.builtin.import_tasks: source-repository.yml

@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Stat env-lgsvl
+  register: _env_lgsvl_query
+  ansible.builtin.stat:
+    path: "{{ ansible_env.HOME }}/.local/svlsimulator/env-lgsvl"
+
+- name: Read LG SVL Simulator user port from env-lgsvl
+  when: _env_lgsvl_query.stat.exists
+  block:
+    - name: Read JSON content from LGSVL user port map
+      register: slurped_json
+      ansible.builtin.slurp:
+        src: "/opt/svlsimulator/svl-user-ports.json"
+
+    - name: Set LG SVL Simulator user port map JSON content
+      ansible.builtin.set_fact:
+        json_content: "{{ slurped_json['content'] | b64decode | from_json }}"
+
+- name: Set fact avp_svl_port
+  ansible.builtin.set_fact:
+    avp_svl_port: "{{ json_content[ansible_user] if _env_lgsvl_query.stat.exists else '8181' }}"

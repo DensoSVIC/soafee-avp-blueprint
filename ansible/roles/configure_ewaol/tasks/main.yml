@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Expand root filesystem to volume size
+  ansible.builtin.import_tasks: parted.yml
+
+- name: Add group 'docker'
+  become: true
+  ansible.builtin.group:
+    name: docker
+    state: present
+
+- name: Add user to group 'docker'
+  become: true
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: true
+
+- name: Add user to group 'systemd-journal'
+  become: true
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    groups: systemd-journal
+    append: true
+
+- name: Stat /usr/local
+  register: _dir_query
+  ansible.builtin.stat:
+    path: /usr/local
+
+- name: Create /usr/local
+  when: not _dir_query.stat.exists
+  become: true
+  ansible.builtin.file:
+    path: /usr/local
+    state: directory
+    owner: root
+    group: root
+    mode: u=rwx,g=rx,o=rx
+
+- name: Stat /usr/local/bin
+  register: _dir_query
+  ansible.builtin.stat:
+    path: /usr/local/bin
+
+- name: Create /usr/local/bin
+  when: not _dir_query.stat.exists
+  become: true
+  ansible.builtin.file:
+    path: /usr/local/bin
+    state: directory
+    owner: root
+    group: root
+    mode: u=rwx,g=rx,o=rx

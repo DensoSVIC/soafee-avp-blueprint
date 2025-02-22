@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: k3s delete deployment
+  when: inventory_hostname in groups['avp_render']
+  kubernetes.core.k8s:
+    state: absent
+    apply: true
+    src: "{{ soafee_dir }}/k3s/k3s-combined-resources.yml"
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    namespace: "{{ deployment }}-{{ ansible_user }}"
+    wait: true
+
+- name: Docker remove images
+  with_items: "{{ soafee_avp_demo_services }}"
+  become: "{{ inventory_hostname in groups['avp_ewaol'] }}"
+  community.docker.docker_image:
+    name: "{{ ecr_user_repo_uri }}"
+    tag: "{{ item }}"
+    state: absent
+
+- name: containerd delete images
+  with_items: "{{ soafee_avp_demo_services }}"
+  register: result
+  changed_when: '"image not found" not in result.stderr'
+  become: true
+  ansible.builtin.command:
+    cmd: >
+      {{ '/usr/local/bin/k3s ctr' if inventory_hostname in groups['avp_ewaol'] else 'ctr' }}
+      --namespace k8s.io
+      images delete
+      {{ ecr_user_repo_uri }}:{{ item }}
+
+- name: LFC clean
+  when: inventory_hostname in groups['avp_render']
+        or inventory_hostname in groups['avp_builder']
+  ansible.builtin.file:
+    path: "{{ soafee_avp_demo_path }}/src/fed-gen"
+    state: absent
+
+- name: Docker system prune
+  when: inventory_hostname in groups['avp_render']
+        or inventory_hostname in groups['avp_builder']
+  community.docker.docker_prune:
+    containers: true
+    images: true
+    volumes: true
+    builder_cache: true
+    builder_cache_all: true
+    timeout: 120

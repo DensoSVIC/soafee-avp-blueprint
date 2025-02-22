@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Log in to container registry
+  when: ecr_password is not defined or not ecr_password
+  ansible.builtin.import_tasks: ecr-docker-login.yml
+
+- name: k3s recreate registry secret with latest ECR token
+  changed_when: false
+  ansible.builtin.shell:
+    cmd: >-
+      kubectl delete secret
+      --kubeconfig /etc/rancher/k3s/k3s.yaml
+      --ignore-not-found 
+      --namespace {{ deployment }}-{{ ansible_user }}
+      {{ deployment }}-{{ ansible_user }}-ecr
+      && kubectl create secret docker-registry
+      --kubeconfig /etc/rancher/k3s/k3s.yaml
+      --namespace {{ deployment }}-{{ ansible_user }}
+      --docker-server=https://{{ ecr_registry_uri }}
+      --docker-username=AWS
+      --docker-password={{ ecr_password }}
+      {{ deployment }}-{{ ansible_user }}-ecr

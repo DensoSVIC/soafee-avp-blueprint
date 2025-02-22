@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+
+## source folder checksum
+
+- name: Stat previous source checksum
+  register: _previous_lfc_source_hash
+  ansible.builtin.stat:
+    path: "{{ soafee_dir }}/.cache/lfc-source-hash"
+
+- name: Read previous source checksum
+  when: _previous_lfc_source_hash.stat.exists
+  register: _previous_source_hash_slurp
+  ansible.builtin.slurp:
+    src: "{{ soafee_dir }}/.cache/lfc-source-hash"
+
+- name: Compute checksum of source directory
+  register: _current_source_hash
+  changed_when: false
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -c
+      - "find '{{ soafee_avp_demo_path }}/avp/src' -type f -exec md5sum {} \\; | sort | md5sum | awk '{print $1}'"
+
+- name: Set fact _lfc_source_changed
+  ansible.builtin.set_fact:
+    _lfc_source_changed: "{{
+        not _previous_lfc_source_hash.stat.exists
+        or _current_source_hash.stdout != (_previous_source_hash_slurp.content | b64decode | trim) }}"
+
+
+## build folder checksum
+
+- name: Stat previous build checksum
+  register: _previous_lfc_build_hash
+  ansible.builtin.stat:
+    path: "{{ soafee_dir }}/.cache/lfc-build-hash"
+
+- name: Read previous build checksum
+  when: _previous_lfc_source_hash.stat.exists
+  register: _previous_build_hash_slurp
+  ansible.builtin.slurp:
+    src: "{{ soafee_dir }}/.cache/lfc-build-hash"
+
+- name: Compute checksum of build directory
+  register: _current_build_hash
+  changed_when: false
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -c
+      - "find '{{ soafee_avp_demo_path }}/avp/fed-gen' -type f -exec md5sum {} \\; | sort | md5sum | awk '{print $1}'"
+
+- name: Set fact _lfc_build_changed
+  ansible.builtin.set_fact:
+    _lfc_build_changed: "{{
+        not _previous_lfc_build_hash.stat.exists
+        or _current_build_hash.stdout != (_previous_build_hash_slurp.content | b64decode | trim) }}"
+
+
+## build
+
+- name: Build Lingua Franca source
+  when: _lfc_source_changed or _lfc_build_changed
+  ansible.builtin.include_tasks: build-lfc.yml

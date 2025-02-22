@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Apt update cache
+  become: true
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600 # 1 hr
+
+- name: Configure desktop experience
+  ansible.builtin.import_tasks: desktop-experience.yml
+
+- name: Install Visual Studio Code
+  ansible.builtin.import_tasks: vscode.yml
+
+- name: Configure Firefox profile
+  with_items:
+    - default  # must exist to ensure avp profile is not default
+    - avp-firefox
+  loop_control:
+    loop_var: _firefox_profile
+  ansible.builtin.include_tasks: firefox-profile.yml
+
+- name: Configure user service avp-firefox
+  become: true
+  ansible.builtin.template:
+    src: avp-firefox.service.j2
+    dest: /etc/systemd/user/avp-firefox.service
+
+- name: Configure k3s server
+  ansible.builtin.import_tasks: k3s-server.yml
+
+- name: Configure k3s GPU
+  when: configure_k3s_gpu_operator
+  ansible.builtin.import_tasks: k3s-gpu.yml
+
+- name: k3s ecr login
+  ansible.builtin.import_tasks: ecr-k3s-login.yml
+
+- name: Configure blueprint XWindows environment
+  ansible.builtin.import_tasks: soafee-xenv.yml

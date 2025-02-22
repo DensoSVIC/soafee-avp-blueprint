@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: ECR login
+  ansible.builtin.import_tasks: ecr-docker-login.yml
+
+- name: Create ECR repository {{ ecr_user_repo_uri }}
+  community.aws.ecs_ecr:
+    name: "{{ ecr_user_repo_name }}"
+    registry_id: "{{ ecr_registry_id }}"
+    state: present
+    region: "{{ aws_region }}"
+    lifecycle_policy: "{{ lookup('file', 'ecr-lifecycle-policy.json') | from_json }}"

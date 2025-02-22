@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Query k3s terminal monitor
+  ansible.builtin.import_tasks: k3s-monitor-process.yml
+
+- name: Set fact _k3s_monitor_cmd
+  ansible.builtin.set_fact:
+    _k3s_monitor_cmd: |
+      kubectl get pods \
+        --namespace {{ deployment }}-{{ ansible_user }} \
+        --selector user={{ ansible_user }} \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
+        --watch \
+      & echo \$! > {{ ansible_env.HOME }}/.cache/k3s-monitor.pid \
+      ; wait
+
+- name: Start gnome-terminal 'kubectl get pods -w'
+  when: not k3s_monitor_running
+  changed_when: true
+  ansible.builtin.shell: |
+    gnome-terminal \
+      --title=k3s-pods-{{ ansible_user }} \
+      --name=k3s-pods-{{ ansible_user }} \
+      --display={{ display }} \
+      --hide-menubar \
+      --geometry=100x20 \
+      -- sh -c "{{ _k3s_monitor_cmd }}"
+  environment:
+    XAUTHORITY: "{{ ansible_env.HOME }}/.Xauthority"
+    DISPLAY: "{{ display }}"
+
+# ensure deployment exists and any previous pods are destroyed
+- name: k3s apply deployment
+  kubernetes.core.k8s:
+    state: present
+    apply: true
+    force: true 
+    src: "{{ soafee_dir }}/k3s/k3s-combined-resources.yml"
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    namespace: "{{ deployment }}-{{ ansible_user }}"
+    wait: true
+    wait_timeout: 360
+
+- name: k3s scale up deployments
+  with_items: "{{ soafee_avp_demo_services }}"
+  changed_when: true
+  ansible.builtin.shell:
+    cmd: |
+      kubectl scale deployment \
+        --kubeconfig /etc/rancher/k3s/k3s.yaml \
+        --namespace {{ deployment }}-{{ ansible_user }} \
+        {{ item }} \
+        --replicas=1
+
+- name: k3s wait for pods 
+  loop: "{{ soafee_avp_demo_services }}"
+  kubernetes.core.k8s:
+    state: present
+    apply: false
+    kind: pod
+    label_selectors:
+      - "app={{ item }}"
+      - "user={{ ansible_user }}"
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    namespace: "{{ deployment }}-{{ ansible_user }}"
+    wait: true
+    wait_timeout: 30

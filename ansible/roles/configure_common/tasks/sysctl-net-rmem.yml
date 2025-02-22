@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
+# SPDX-License-Identifier: BSD-3-Clause
+---
+- name: Copy avp-net-rmem.conf to /etc/sysctl.d
+  become: true
+  ansible.builtin.copy:
+    src: avp-net-rmem.conf
+    dest: /etc/sysctl.d/
+  
+- name: Sysctl set net.core.rmem_max
+  become: true
+  ansible.posix.sysctl:
+    name: "net.core.rmem_max"
+    value: 2147483647
