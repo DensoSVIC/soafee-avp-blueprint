@@ -238,7 +238,7 @@ If you have shut down the EC2 instances, you will need to restart them using the
 When you are done exploring the blueprint, or if you would like to configure a new deployment, you may destroy all of the cloud resources:
 
 ```shell
-blueprint destroy
+blueprint deprovision
 ```
 
 ## Exploring the Blueprint
