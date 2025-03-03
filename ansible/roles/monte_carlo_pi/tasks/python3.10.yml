@@ -1,11 +1,19 @@
 # SPDX-FileCopyrightText: (c) 2025 Xronos Inc. Licensed to DENSO International America, Inc.
 # SPDX-License-Identifier: BSD-3-Clause
 ---
-- name: Add deadsnakes PPA repository
+- name: Apt add deadsnakes PPA
+  register: _deadsnakes_ppa
   become: true
-  ansible.builtin.apt_repository:
-    repo: ppa:deadsnakes/ppa
-    state: present
+  ansible.builtin.template:
+    src: deadsnakes-ubuntu-ppa.sources
+    dest: /etc/apt/sources.list.d/deadsnakes-ubuntu-ppa-{{ ansible_distribution_release }}.sources
+    mode: u=rw,g=r,o=r
+
+- name: Apt update cache
+  when: _deadsnakes_ppa.changed
+  become: true
+  ansible.builtin.apt:
+    update_cache: true
 
 - name: Install Python3.10
   become: true
