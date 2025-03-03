@@ -166,16 +166,18 @@ function get_deployment() {
 # sets:
 #   host_aliases: array of host aliases used by this deployment
 #
+host_aliases=()
 function get_host_aliases() {
+    host_aliases=()
     local hostfile="./instances/${deployment}-hosts"
     if [ ! -f ${hostfile} ]; then
         warn "hostfile ${hostfile} not found. no host aliases available."
         return
     fi
 
-    # use grep to filter out comment lines and sed to remove blank lines,
-    # then use awk to extract the alias (second field) and store each into an array
-    readarray -t host_aliases < <(grep -v '^[[:space:]]*#' "${hostfile}" | sed '/^[[:space:]]*$/d' | awk '{print $2}')
+    while IFS= read -r line; do
+        host_aliases+=("$line")
+    done < <(grep -v '^[[:space:]]*#' "${hostfile}" | sed '/^[[:space:]]*$/d' | awk '{print $2}')
 }
 
 # get_active_user() - determine active username for instance SSH
