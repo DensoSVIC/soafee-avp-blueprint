@@ -299,11 +299,11 @@ function get_ssh_auth_sock() {
 # deletes:
 #   - ./instances/${deployment}-active-user
 #   - ./instances/${deployment}-${active_user}.pem
-#   - ./instances/${deployment}-10-active-user.config
+#   - ./instances/${deployment}-20-active-user.config
 #
 function restore_default_user() {
     rm -f ./instances/${deployment}-active-user
-    rm -f ./instances/${deployment}-10-active-user.config
+    rm -f ./instances/${deployment}-20-active-user.config
     if [ -n "${active_user}" ] && [ -f ./instances/${deployment}-${active_user}.pem ]; then
         rm -f ./instances/${deployment}-${active_user}.pem
     fi
@@ -1042,6 +1042,8 @@ case ${ARG_COMMAND} in
         restore_default_user
         run_terraform destroy $@
         clean_docker_volumes
+
+        rm -f ./instances/${deployment}-00-ssh.config
         ;;
     add-user)
         print_header
