@@ -314,7 +314,8 @@ function restore_default_user() {
 # and copies instance folder into an instances volume.
 # 
 # gets:
-#   ${ANSIBLE_REQUIREMENTS_FORCE_UPDATE}: when "1", force install requirements
+#   ${ANSIBLE_REQUIREMENTS_FORCE_UPDATE}: when "0", requirements that are already
+#       in the docker cache volumes will not be force-updated.
 #
 # creates:
 #   docker volume "xronos-ansible-cache-roles" with roles installed
@@ -363,9 +364,9 @@ function ansible_init() {
     fi    
 
     # install ansible role dependencies
-    local force_flag=""
-    if [ "${ANSIBLE_REQUIREMENTS_FORCE_UPDATE}" == "1" ]; then
-        force_flag="-f"
+    local force_flag="-f"
+    if [ "${ANSIBLE_REQUIREMENTS_FORCE_UPDATE}" == "0" ]; then
+        force_flag=""
     fi
     echo installing ansible role requirements to 'xronos-ansible-cache-roles'
     docker run \
@@ -535,8 +536,6 @@ function run_terraform() {
         ${terraform_docker_image} \
         ${args} \
         ${terraform_tty_flags}
-
-    ansible_update_instance_volume
 }
 
 # run_init_user() - initialize the default user 'avp' on all instances.
@@ -753,6 +752,23 @@ function run_deconfigure() {
         ${ansible_args} \
         deconfigure.yml \
         $@
+}
+
+# clean_docker_volumes() - delete cache and instance docker volumes
+#
+function clean_docker_volumes() {
+    volumes=(
+        xronos-ansible-cache-roles
+        xronos-ansible-cache-collections
+        xronos-${deployment}-instances
+    )
+
+    for volume in "${volumes[@]}"; do
+        if docker volume inspect "${volume}" &>/dev/null; then
+            info "deleting docker volume ${volume}"
+            docker volume rm "${volume}"
+        fi
+    done
 }
 
 # run_shell() - open an SSH shell on an instance
@@ -1015,6 +1031,7 @@ case ${ARG_COMMAND} in
         run_clear_local_ssh_config
         restore_default_user
         run_terraform destroy $@
+        clean_docker_volumes
         ;;
     add-user)
         print_header
