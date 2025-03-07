@@ -314,6 +314,8 @@ function restore_default_user() {
     write_user_ssh_config
     ansible_set_environment
     ansible_update_instance_volume
+
+    info "restored default user"
 }
 
 # ansible_init() - initialize ansible volumes and install requirements.
@@ -408,6 +410,8 @@ function ansible_init() {
             -p /usr/share/ansible/collections"
 
     ansible_update_instance_volume
+
+    info "ansible initialization complete"
 }
 
 # ansible_set_environment() - configure Ansible environment variables and docker volumes.
@@ -519,7 +523,7 @@ function run_terraform() {
         shift $#
     fi
     mkdir -p instances
-    echo "running terraform init"
+    info "initializing terraform"
     docker run \
         ${docker_tty_flags} \
         --rm \
@@ -532,7 +536,7 @@ function run_terraform() {
         init \
         --backend-config "path=workspace/${deployment}.tfstate" \
         ${terraform_tty_flags}
-    echo "running terraform ${args} ${terraform_tty_flags}"
+    info "running terraform ${args} ${terraform_tty_flags}"
     docker run \
         ${docker_tty_flags} \
         --rm \
@@ -633,6 +637,8 @@ function run_add_user() {
         ${user_public_keyfile_arg} \
         configure-adduser.yml \
         $@
+
+    info "user '${arg_user}' configured"
 }
 
 # run_set_user() - set the active user for instance SSH and ansible
@@ -708,6 +714,7 @@ function run_configure() {
         ${ansible_args} \
         configure.yml \
         $@
+    info "host configuration complete"
 }
 
 # run_avp() - run an AVP demo command
@@ -733,6 +740,8 @@ function run_avp() {
         ${ansible_args} \
         avp.yml \
         $@
+
+    info "AVP demo command '${1#--tags=}' complete"
 }
 
 # run_ami_ewaol_build() - build an EWAOL AMI
@@ -749,7 +758,7 @@ function run_ami_ewaol_build() {
 #
 function run_deconfigure() {
     # run deconfigure playbook
-    info "de-configuring"
+    info "deconfiguring hosts"
     docker run \
         ${docker_tty_flags} \
         --name ${deployment}-ansible \
@@ -760,6 +769,7 @@ function run_deconfigure() {
         ${ansible_args} \
         deconfigure.yml \
         $@
+    info "host deconfiguration complete"
 }
 
 # clean_docker_volumes() - delete cache and instance docker volumes
@@ -773,8 +783,8 @@ function clean_docker_volumes() {
 
     for volume in "${volumes[@]}"; do
         if docker volume inspect "${volume}" &>/dev/null; then
-            info "deleting docker volume ${volume}"
-            docker volume rm "${volume}"
+            echo "deleting docker volume ${volume}"
+            docker volume rm "${volume}" >/dev/null
         fi
     done
 }
@@ -811,7 +821,7 @@ function run_shell() {
         host_info="${host_info} (${uri})"
     fi
 
-    info "ssh shell ${active_user}@${host_info} with command '${ssh_args}'"
+    info "running shell ${active_user}@${host_info} with command '${ssh_args}'"
     ssh \
         -t \
         -i ${active_private_key_path} \
@@ -849,6 +859,8 @@ function run_local_ssh_config() {
         || (echo -e 'Include config.d/**/*ssh.config\n' \
         | cat - ~/.ssh/config > ssh_config.tmp \
         && mv ssh_config.tmp ~/.ssh/config)
+
+    info "added host configurations to user ~/.ssh/config.d/"
 }
 
 # run_clear_local_ssh_config() - unlink instances folder from ~/.ssh/config.d
@@ -859,10 +871,8 @@ function run_local_ssh_config() {
 function run_clear_local_ssh_config() {
     # clear instances symlink
     if [ -L ~/.ssh/config.d/instances ]; then
-        echo clearing hosts from ~/.ssh/config.d
         rm ~/.ssh/config.d/instances
-    else
-        echo hosts are not present in ~/.ssh/config.d
+        info "cleared hosts from ~/.ssh/config.d"
     fi
 }
 
@@ -881,10 +891,10 @@ function run_set_deployment() {
     if [ -z "${1}" ]; then
         error "no deployment name provided" 3
     fi
-    echo setting active deployment ${1}
     mkdir -p ./instances
     echo "${1}" > ./instances/active-deployment
     get_deployment
+    info "active deployment is now ${deployment}"
 }
 
 # show_hosts() - print hostname and IP addresses
@@ -1005,7 +1015,7 @@ case ${ARG_COMMAND} in
         ;;
     configure)
         if [ ${#host_aliases[@]} -eq 0 ]; then
-            warn "instances hostfile is empty or missing; no hosts added to user ssh configuration"
+            warn "instances hostfile is empty or missing"
         fi
         print_header
         show_config $@
@@ -1044,6 +1054,7 @@ case ${ARG_COMMAND} in
         print_header
         show_config $@
         run_deconfigure $@
+        info "host deconfiguration complete"
         ;;
     deprovision)
         print_header
@@ -1056,6 +1067,7 @@ case ${ARG_COMMAND} in
 
         rm -f ./instances/${deployment}-00-ssh.config
         rm -f ./instances/${deployment}-20-active-user.config
+        info "deprovisioned deployment '${deployment}'"
         ;;
     add-user)
         print_header
