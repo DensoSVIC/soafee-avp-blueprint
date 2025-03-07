@@ -83,7 +83,7 @@ variable "ubuntu_amd64_ami" {
   type = string
   description = "AWS AMI to use for standard amd64 EC2 instances"
 
-  # ubuntu/images/hvm-ssd/ubuntu-jammy-24.04-amd64-server-20250110 us-east-1
+  # ubuntu/images/hvm-ssd/ubuntu-noble-24.04-amd64-server-20250110 us-east-1
   default = "ami-04b4f1a9cf54c11d0"
 }
 
@@ -91,7 +91,7 @@ variable "ubuntu_arm64_ami" {
   type = string
   description = "AWS AMI to use for standard arm64 EC2 instances"
 
-  # ubuntu/images/hvm-ssd/ubuntu-jammy-24.04-arm64-server-20250115 us-east-1
+  # ubuntu/images/hvm-ssd/ubuntu-noble-24.04-arm64-server-20250115 us-east-1
   default = "ami-0a7a4e87939439934"
 }
 
