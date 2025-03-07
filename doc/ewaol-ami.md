@@ -54,6 +54,6 @@ You can enable automatic management of the `vmimport` role in Terraform by creat
 
     You can override the default EWAOL AMI by creating the variables file `terraform/variables.auto.tfvars` and adding the line `ewaol_ami = ami-000000000` (substituting the ARN of your AMI).
 
-1. Run `blueprint build-avp-amis` to build AMIs specific to this AVP demo. This creates an AMI for each instance. Similarly, once the AMIs are built, update the Terriform file `terraform/variables.auto.tfvars`
+1. Run `blueprint build-avp-amis` to build AMIs specific to this AVP demo. This creates an AMI for each instance. Similarly, once the AMIs are built, update the Terraform file `terraform/variables.auto.tfvars`
 
 > :warning: **AWS does not provide a service-level agreement (SLA) for AMI generation**: Creation of an AMI can take hours. The process is subject to failure or timeout. If this occurs, use the AWS console to monitor any pending AMIs, and then comment out the appropriate AMI names from the Ansible configuration scripts to avoid errors in duplicate AMIs. There is no known workaround for this issue.
