@@ -445,7 +445,7 @@ function ansible_set_environment() {
 
     # ansible playbooks and roles from this repository
     if [ ! -d ./ansible ]; then
-        errro "directory './ansible' not found" 30
+        error "directory './ansible' not found" 30
     fi
     ansible_volume_map="${ansible_volume_map} --volume ./ansible:${ansible_docker_home}/ansible:ro"
 
@@ -867,6 +867,7 @@ function run_set_deployment() {
         error "no deployment name provided" 3
     fi
     echo setting active deployment ${1}
+    mkdir -p ./instances
     echo "${1}" > ./instances/active-deployment
     get_deployment
 }
