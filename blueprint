@@ -164,8 +164,9 @@ function get_deployment() {
 #   deployment
 # 
 # sets:
-#   host_aliases: array of host aliases used by this deployment
+#   host_aliases: associative array of host aliases and URIs used by this deployment
 #
+declare -A host_aliases
 host_aliases=()
 function get_host_aliases() {
     host_aliases=()
@@ -174,9 +175,9 @@ function get_host_aliases() {
         return
     fi
 
-    while IFS= read -r line; do
-        host_aliases+=("$line")
-    done < <(grep -v '^[[:space:]]*#' "${hostfile}" | sed '/^[[:space:]]*$/d' | awk '{print $2}')
+    while read -r uri alias; do
+        host_aliases["${alias}"]="${uri}"
+    done < <(grep -v '^[[:space:]]*#' "${hostfile}" | sed '/^[[:space:]]*$/d')
 }
 
 # get_active_user() - determine active username for instance SSH
@@ -248,7 +249,7 @@ function write_user_ssh_config() {
         echo writing user SSH configuration file ${ssh_user_config_file}
         echo -e "# This file is generated.\n" > ${ssh_user_config_file}
 
-        for alias in "${host_aliases[@]}"; do
+        for alias in "${!host_aliases[@]}"; do
             echo "Host ${alias}" >> ${ssh_user_config_file}
             if [ -n "${active_user}" ]; then
                 echo "    User ${active_user}" >> ${ssh_user_config_file}
@@ -797,12 +798,26 @@ function run_shell() {
         ssh_config_arg="-F ${deployment}-00-ssh.config"
     fi
 
-    info "ssh shell on '${hostname}' with command '${ssh_args}'"
+    # lookup URI from deployment hostsfile
+    local uri="${hostname}"
+    local host_info="${hostname}"
+    local hostfile="./instances/${deployment}-hosts"
+    if [ ! -f ${hostfile} ]; then
+        warn "hostfile ${hostfile} not found. hostname ${hostname} will be used."
+    elif [ -z "${host_aliases[${hostname}]}" ]; then
+        warn "hostname ${hostname} not found in ${hostfile}"
+    else
+        uri=${host_aliases[${hostname}]}
+        host_info="${host_info} (${uri})"
+    fi
+
+    info "ssh shell ${active_user}@${host_info} with command '${ssh_args}'"
     ssh \
         -t \
         -i ${active_private_key_path} \
+        -o StrictHostKeyChecking=no \
         ${ssh_config_arg} \
-        ${hostname} \
+        ${active_user}@${uri} \
         ${ssh_args}
 }
 
@@ -874,18 +889,13 @@ function run_set_deployment() {
 
 # show_hosts() - print hostname and IP addresses
 # 
-# reads:
-#   ./instances/${deployment}-hosts
+# gets:
+#   host_aliases
 #
 function show_hosts() {
-    local hostfile="./instances/${deployment}-hosts"
-    if [ ! -f ${hostfile} ]; then
-        error "hostfile ${hostfile} not found." 3
-    fi
-
-    # use grep to filter out comment lines and sed to remove blank lines,
-    # then use awk to extract the alias (second field) and IP address (first field)
-    grep -v '^[[:space:]]*#' "${hostfile}" | sed '/^[[:space:]]*$/d' | awk '{print $2, $1}'
+    for alias in "${!host_aliases[@]}"; do
+        echo "${alias} ${host_aliases[${alias}]}"
+    done
 }
 
 # show_config() - print the current configuration
@@ -994,7 +1004,7 @@ case ${ARG_COMMAND} in
         ansible_init
         ;;
     configure)
-        if [ ${#host_aliases} -eq 0 ]; then
+        if [ ${#host_aliases[@]} -eq 0 ]; then
             warn "instances hostfile is empty or missing; no hosts added to user ssh configuration"
         fi
         print_header
