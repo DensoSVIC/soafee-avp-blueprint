@@ -2,7 +2,7 @@
 
 ## General Troubleshooting Tips
 
-Look at the Ansible scripts in [ansible/tasts](ansible/tasks) to see what is executed as part of any configuration or build step.
+Look at the Ansible scripts in [ansible/](../ansible/) to see what is executed as part of any configuration or build step.
 
 ## Issue: NICE-DCV Viewer unable to connect
 
@@ -37,7 +37,7 @@ LGSVL registers with SORA-SVL services on startup, and sets the simulation ID to
 
 If LGSVL Simulator has been running for a long time, it appears to disconnect from the SORA-SVL cloud service. Once this happens, it will not be able to be put into API mode. Restart LGSVL Simulator or the entire application to resolve.
 
-_Note: There is a web interface to SORA-SVL on http://localhost:80. You can click on Simulations and manually put the simulation into API mode._
+[!NOTE] _There is a web interface to SORA-SVL on http://localhost:80. You can click on Simulations and manually put the simulation into API mode._
 
 ## Known Issues
 

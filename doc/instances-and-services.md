@@ -33,7 +33,7 @@ Configuration steps will pass trailing arguments along to Ansible. See [ansible-
 *Note: Ansible is run in a docker container and does not have access to arbitrary locations in your host filesystem. Any files referenced by Ansible arguments must be available in the docker container.*
 
 - `--ask-pass`: Prompt for password instead of relying on SSH keys.
-- `--skip-tags`: Skip tasks with one or more tags. Example, `--skip-tags=common` will skip the role `xronos_ubuntu_common_ansible`. See [ansible/configure.yml](ansible/configure.yml) to see tags.
+- `--skip-tags`: Skip tasks with one or more tags. Example, `--skip-tags=common` will skip the role `xronos_ubuntu_common_ansible`. See [ansible/configure.yml](../ansible/configure.yml) to see tags.
 - `-v` (or `-vv`): Verbose output.
 
 ## Services by Instance

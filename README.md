@@ -18,7 +18,7 @@ Video of this demo: [https://youtu.be/hbjjRoyQ0Cw?si=EgdreEjWDr6FIReu](https://y
 
 Source code of the demo software: [DensoSVIC/soafee-avp-demo](https://github.com/densosvic/soafee-avp-demo)
 
-Overview of the Lingua Franca port of the Autoware.Auto AVP Demo: [Predictable Coordination for Safety-Critical Real-Time Systems ](https://www.youtube.com/watch?v=3NHjQLIYVK4)
+Overview of the Lingua Franca port of the Autoware.Auto AVP Demo: [Predictable Coordination for Safety-Critical Real-Time Systems](https://www.youtube.com/watch?v=3NHjQLIYVK4)
 
 ## Features
 
@@ -106,7 +106,7 @@ Your credentials need to have the following AWS IAM Policies:
 
 - AdministratorAccess
 
-The default region is `us-east-1`. See [doc/ewaol-ami](doc/ewaol-ami.md) for more information about supported regions.
+The default region is `us-east-1`. See [Region Support](doc/regions.md) for more information about supported regions.
 
 ### 2. Install prerequisites
 

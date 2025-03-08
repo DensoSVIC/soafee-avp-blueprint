@@ -2,7 +2,7 @@
 
 If you have an on-premise hardware, these scripts may be modified to configure and run the demo locally. You will need to make modificiations for this to work on-premise.
 
-:warning: We have not validated these steps. We have run the demo on local hardware in the past, but we leave fully automating this for future work. We outline steps below that will point you in the right direction, but these steps are by no means correct nor complete.
+[!WARN] We have not validated these steps. We have run the demo on local hardware in the past, but we leave fully automating this for future work. We outline steps below that will point you in the right direction, but these steps are by no means correct nor complete.
 
 ## Hardware
 
@@ -31,7 +31,7 @@ Alternate hardware configurations:
 
 EWAOL is not strictly required to run this demo since the distributed application runs in containers via k3s. You may provide your own EWAOL instance if you wish to explore alternative orchestration tools such as [BlueChi](https://github.com/eclipse-bluechi/bluechi).
 
-It may be possible to use the EWAOL image from this blueprint, but this has not been tested. See [ewaol-ami](ewaol-ami).
+It may be possible to use the EWAOL image from this blueprint, but this has not been tested. See [SOAFEE Blueprint EWAOL AMI](ewaol-ami.md).
 
 ## Modifications
 
@@ -60,4 +60,4 @@ The modifications needed to adapt this repository for on-premise deployment shou
 
 Then run the `blueprint` scripts, omitting the first `provision` step.
 
-*Note: these scripts assume the user `ubuntu` exists and that it has sudo access. If the sudo password is required, append `--ask-become` to run commands that invoke ansible.*
+[!NOTE] these scripts assume the user `ubuntu` exists and that it has sudo access. If the sudo password is required, append `--ask-become` to run commands that invoke ansible.*
