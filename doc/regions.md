@@ -24,9 +24,11 @@ ubuntu_amd64_ami ""
 ubuntu_arm64_ami ""
 ```
 
-> [!CAUTION] The variables set in `terraform/variables-secret.auto.tfvars` are read by the provision step and will apply to the active deployment. If you are switching between deployments in different regions, **ensure the variables file matches the active deployment** otherwise the provision step will destroy and recreate resources for the active deployment in the another region. The variables file is only read by the provision step; once a deployment is provisioned, all other commands will apply to active deployment.
+> [!CAUTION]
+> The variables set in `terraform/variables-secret.auto.tfvars` are read by the provision step and will apply to the active deployment. If you are switching between deployments in different regions, **ensure the variables file matches the active deployment** otherwise the provision step will destroy and recreate resources for the active deployment in the another region. The variables file is only read by the provision step; once a deployment is provisioned, all other commands will apply to active deployment.
 
-> [!TIP] The blueprint specifies exact versions of software packages to install, and has been validated with Canonical's 2025-01-15 release of Ubuntu 24.04 LTS. Changing to a different release is likely to create broken package dependencies.
+> [!TIP]
+> The blueprint specifies exact versions of software packages to install, and has been validated with Canonical's 2025-01-15 release of Ubuntu 24.04 LTS. Changing to a different release is likely to create broken package dependencies.
 
 If you would like to inquire about support for additional regions, please open a GitHub issue with the request.
 
@@ -42,9 +44,11 @@ Set the active deployment before provisioning with the following command:
 blueprint set-deployment <deployment-name>
 ```
 
-> [!CAUTION] Always ensure `terraform/variables-secret.auto.tfvars` matches the active deployment before running the `blueprint provision` step.
+> [!CAUTION]
+> Always ensure `terraform/variables-secret.auto.tfvars` matches the active deployment before running the `blueprint provision` step.
 
-> [!IMPORTANT] The deployment name must be set *before* the provision step, as cloud resources are named based on the active deployment.
+> [!IMPORTANT]
+> The deployment name must be set *before* the provision step, as cloud resources are named based on the active deployment.
 
 You may switch between deployments using the same command. All subsequent blueprint commands are run against the active deployment.
 
