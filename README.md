@@ -35,7 +35,7 @@ Overview of the Lingua Franca port of the Autoware.Auto AVP Demo: [Predictable C
 
 - Automatically build an EWAOL AMI
 - Teams may share a deployment, and multiple users may independently customize and run the demo
-- Multiple cloud deployments may be evaluated without colliding
+- Multiple cloud deployments may be evaluated without colliding (see [Region Support](doc/regions.md))
 
 ## Technology Overview
 
