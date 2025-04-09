@@ -317,7 +317,6 @@ resource "aws_iam_instance_profile" "avp_builder"{
 
 module "instance_ec2" {
     source = "../instance_ec2"
-    deployment = var.deployment
 
     ec2_use_eips = var.ec2_use_eips
   

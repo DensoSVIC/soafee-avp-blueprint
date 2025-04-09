@@ -166,7 +166,6 @@ module "hostsfile" {
 
 module "ssh_config" {
   source = "./modules/ssh_config"
-  deployment = var.deployment
   hosts = local.hosts
   keyfiles_path_prefix = var.keyfiles_path_prefix
   output_folder = "${var.output_instances_dir}"
