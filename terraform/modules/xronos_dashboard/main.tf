@@ -104,6 +104,7 @@ resource "aws_iam_instance_profile" "this"{
 
 module "instance_ec2" {
     source = "../instance_ec2"
+    deployment = var.deployment
 
     instances = [
       {

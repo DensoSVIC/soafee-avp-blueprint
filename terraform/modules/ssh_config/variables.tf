@@ -4,7 +4,6 @@
 variable "deployment" {
     type = string
     description = "Name of this deployment"
-    default = "soafee"
 }
 
 variable hosts {

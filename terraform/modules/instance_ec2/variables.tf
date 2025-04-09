@@ -4,7 +4,6 @@
 variable deployment {
     description = "Name of this deployment"
     type = string
-    default = "soafee"
 }
 
 variable "instances" {
