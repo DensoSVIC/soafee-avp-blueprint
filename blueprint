@@ -533,7 +533,7 @@ function run_terraform() {
         --volume ./instances:/instances \
         --workdir /terraform \
         ${terraform_docker_image} \
-        init \
+        init -upgrade \
         --backend-config "path=workspace/${deployment}.tfstate" \
         ${terraform_tty_flags}
     info "running terraform ${args} ${terraform_tty_flags}"

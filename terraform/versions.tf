@@ -14,15 +14,15 @@ terraform {
   required_providers {
     aws = {
       source = "hashicorp/aws"
-      version = "5.86.1"
+      version = ">= 5.86.1, < 6.0.0"
     }
     local = {
       source = "hashicorp/local"
-      version = "2.5.2"
+      version = ">= 2.5.2, < 3.0.0"
     }
     tls = {
       source = "hashicorp/tls"
-      version = "4.0.6"
+      version = ">= 4.0.6, < 5.0.0"
     }
   }
 }
