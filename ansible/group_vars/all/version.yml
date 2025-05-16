@@ -2,5 +2,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
 ---
 soafee_avp_demo_repo_uri: https://github.com/DensoSVIC/soafee-avp-demo
-soafee_avp_demo_version: v0.0.1
+soafee_avp_demo_version: v0.0.2
 avp_sora_svl_version: 1.1.0
