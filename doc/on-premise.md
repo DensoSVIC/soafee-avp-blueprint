@@ -41,6 +41,8 @@ The modifications needed to adapt this repository for on-premise deployment shou
 1. Create instance information for your onsite deployment. Template instance information is located in [onsite-instance-template/](onsite-instance-template) and may be copied into your local `instances` folder. The instance information includes an Ansible inventory, POSIX hosts file, and OpenSSH config file for your deployment.
     If you plan to use a single hardware instance for more than one role, such as running Xronos Dashboard and the AVP render on the same host, define the host only once in the inventory and then include it as a child of any additional roles.
 
+    The inventory_hostname of each hardware instance (e.g. `amd64-machine` & `arm64-machine`) does not matter as long as they are correctly assigned to each group under `children`.
+
     Starting with an Ubuntu 24.04 server installation (and not a desktop installation) for the render instance will ensure the installation of an NVIDIA driver that is compatible with LG SVL Simulator.
 1. Configure your container registry for federate images.
     - If using ECR:
