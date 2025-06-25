@@ -44,7 +44,7 @@ The modifications needed to adapt this repository for on-premise deployment shou
     Starting with an Ubuntu 24.04 server installation (and not a desktop installation) for the render instance will ensure the installation of an NVIDIA driver that is compatible with LG SVL Simulator.
 1. Configure your container registry for federate images.
     - If using ECR:
-      1. Ensure AWS access keys are configured in the environment variables `AWS_ACCESS_KEY`, `AWS_SECRET_KEY` and `AWS_EC2_REGION`.
+      1. Ensure AWS access keys are configured in the environment variables `AWS_ACCESS_KEY`, `AWS_SECRET_KEY` and `AWS_REGION`.
       1. Set the ECR address to the Ansible inventory.
     - If using Docker hub:
       1. Comment-out the Ansible steps to create ECR repositories for each federate.
