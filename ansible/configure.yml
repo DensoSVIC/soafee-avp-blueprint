@@ -73,7 +73,6 @@
         ubuntu_trim_motd: true
         ubuntu_disable_unattended_upgrades: true
         ubuntu_snapshot: 20250206T040000Z
-        ubuntu_python_version: 3.12.3-0ubuntu2
 
     - name: xronos_aws_cli_ansible
       role: xronos_aws_cli_ansible
@@ -82,12 +81,6 @@
 
     - name: xronos_docker_ansible
       role: xronos_docker_ansible
-      vars:
-        docker_version: 5:27.5.1-1~ubuntu.24.04~noble
-        docker_buildx_version: 0.20.0-1~ubuntu.24.04~noble
-        docker_compose_version: 2.32.4-1~ubuntu.24.04~noble
-        python3_docker_version: 5.0.3-1ubuntu1.1
-
 
 #############
 # EWAOL
@@ -120,6 +113,7 @@
         xronos_k3s_server_token: linguafranca
         xronos_k3s_server_cluster_cidr: "{{ k3s_cluster_cidr }}"
         xronos_k3s_server_service_cidr: "{{ k3s_service_cidr }}"
+        xronos_k3s_server_node_name: "{{ deployment }}-avp-render"
 
 - hosts: avp_ewaol
   tags: [always, k3s]
@@ -131,6 +125,7 @@
         xronos_k3s_client_api_endpoint: "https://{{ avp_render_host_private }}:6443"
         xronos_k3s_client_version: v1.31.5+k3s1
         xronos_k3s_client_token: linguafranca
+        xronos_k3s_client_node_name: "{{ deployment }}-avp-ewaol"
 
 
 #############
@@ -143,6 +138,7 @@
   roles:
     - name: xronos_nvidia_drivers_ansible
       role: xronos_nvidia_drivers_ansible
+      when: "{{ nvidia_driver_install | default(false) }}"
       vars:
         nvidia_driver_install: true
         nvidia_install_container: "{{ avp_k3s_use_gpu }}"
@@ -153,7 +149,6 @@
     - name: xronos_ubuntu_desktop_ansible
       role: xronos_ubuntu_desktop_ansible
       vars:
-        ubuntu_desktop_version: 1.539.2
         ubuntu_desktop_reinstall: false
         ubuntu_desktop_configure_x11_nvidia: true
         ubuntu_desktop_disable_wayland: "{{ host_use_nice_dcv }}"
@@ -165,6 +160,10 @@
         nice_dcv_major_version: 2024.0
         nice_dcv_build: 18131
 
+  tasks:
+    - name: create xauth cookie
+      when: not host_use_nice_dcv
+      ansible.builtin.import_tasks: tasks/xauth-cookie.yml
 
 #############
 # LFC
@@ -180,7 +179,6 @@
         lfc_install_cmake: true
         lfc_install_rti: true
         lfc_version: 0.9.0
-        lfc_cmake_version: 3.28.3-1build7
         lfc_openjdk_jre_version: 17.0.13+11-2ubuntu1~24.04
         lfc_rti_commit: 4f183a4
 
@@ -325,7 +323,6 @@
       vars:
         configure_helm_version: 3.17.0
         configure_nvidia_gpu_operator_version: 24.9.2
-        configure_vscode_version: 1.97.0-1738713410
         configure_vscode_extensions:
           - ms-vscode.cpptools@1.23.5
           - twxs.cmake@0.0.17
