@@ -79,18 +79,6 @@
     purge: true
     pkg: gnome-initial-setup
 
-- name: Apt unintall unused desktop features
-  become: true
-  notify: "schedule_reboot"
-  ansible.builtin.apt:
-    state: absent
-    purge: true
-    pkg:
-      - gnome-shell-extension-desktop-icons-ng
-      - gnome-keyring
-      - gnome-keyring-pkcs11
-      - libpam-gnome-keyring
-
 - name: Ubuntu desktop query desktop idle delay
   register: _idle_delay
   changed_when: false
