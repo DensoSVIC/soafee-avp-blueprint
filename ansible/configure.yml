@@ -138,7 +138,7 @@
   roles:
     - name: xronos_nvidia_drivers_ansible
       role: xronos_nvidia_drivers_ansible
-      when: "{{ nvidia_driver_install | default(false) }}"
+      when: nvidia_driver_install
       vars:
         nvidia_driver_install: true
         nvidia_install_container: "{{ avp_k3s_use_gpu }}"
