@@ -108,7 +108,7 @@
     - name: xronos_k3s_server_ansible
       role: xronos_k3s_server_ansible
       vars:
-        xronos_k3s_server_version: v1.31.5+k3s1
+        xronos_k3s_server_version: v1.30.13+k3s1
         xronos_k3s_server_python_module_version: 32.0.0
         xronos_k3s_server_token: linguafranca
         xronos_k3s_server_cluster_cidr: "{{ k3s_cluster_cidr }}"
@@ -123,7 +123,7 @@
       role: xronos_k3s_agent_ansible
       vars:
         xronos_k3s_client_api_endpoint: "https://{{ avp_render_host_private }}:6443"
-        xronos_k3s_client_version: v1.31.5+k3s1
+        xronos_k3s_client_version: v1.30.13+k3s1
         xronos_k3s_client_token: linguafranca
         xronos_k3s_client_node_name: "{{ deployment }}-avp-ewaol"
 
