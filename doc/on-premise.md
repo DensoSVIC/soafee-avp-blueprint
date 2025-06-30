@@ -37,7 +37,7 @@ It may be possible to use the EWAOL image from this blueprint, but this has not 
 
 The modifications needed to adapt this repository for on-premise deployment should include (but aren't limited to) the following:
 
-1. Use a deployment name such as `onsite` that reflects the name of your site or deployment. This differentiates your onsite deployment from the default `soafee` cloud deployment. Use this deployment name for all `blueprint` commands.
+1. Use a deployment name such as `onsite` that reflects the name of your site or deployment.  To do this, run `set-deplloyment` from the `blueprint` scripts. This differentiates your onsite deployment from the default `soafee` cloud deployment. Use this deployment name for all `blueprint` commands.
 1. Create instance information for your onsite deployment. Template instance information is located in [onsite-instance-template/](onsite-instance-template) and may be copied into your local `instances` folder. The instance information includes an Ansible inventory, POSIX hosts file, and OpenSSH config file for your deployment.
     If you plan to use a single hardware instance for more than one role, such as running Xronos Dashboard and the AVP render on the same host, define the host only once in the inventory and then include it as a child of any additional roles.
 
@@ -62,4 +62,6 @@ The modifications needed to adapt this repository for on-premise deployment shou
 
 Then run the `blueprint` scripts, omitting the first `provision` step.
 
-[!NOTE] these scripts assume the user `ubuntu` exists and that it has sudo access. If the sudo password is required, append `--ask-become` to run commands that invoke ansible.*
+[!NOTE] these scripts assume the user `ubuntu` exists and that it has sudo access (`avp-ewaol` expects user `user`). If the sudo password is required, append `--ask-become` to run commands that invoke ansible.*
+
+An SSH key must be generated and added each host's `authorized_keys` file for its respective user.  The private and public key must then be added to the `instances` directory and respectively be named `<deployment>-default.pem` and `<deployment>-default.pub`
