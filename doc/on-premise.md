@@ -65,3 +65,11 @@ Then run the `blueprint` scripts, omitting the first `provision` step.
 [!NOTE] these scripts assume the user `ubuntu` exists and that it has sudo access (`avp-ewaol` expects user `user`). If the sudo password is required, append `--ask-become` to run commands that invoke ansible.*
 
 An SSH key must be generated and added each host's `authorized_keys` file for its respective user.  The private and public key must then be added to the `instances` directory and respectively be named `<deployment>-default.pem` and `<deployment>-default.pub`
+
+## Known Issues
+
+Some hardware setups may encounter connection issues with K3s between hosts. A workaround that often resolves this is to restart the k3s server running on the render host after starting the demo the AVP containers have been deployed. 
+```
+blueprint start
+blueprint shell soafee-avp-render 'sudo systemctl restart k3s'
+```
