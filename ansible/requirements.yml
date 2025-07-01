@@ -2,13 +2,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 ---
 roles:
-- src: https://github.com/xronos-inc/xronos_aws_cli_ansible.git
+- src: https://github.com/DensoSVIC/xronos_aws_cli_ansible.git
   name: xronos_aws_cli_ansible
-  version: v1.1.1
 
-- src: https://github.com/xronos-inc/xronos_docker_ansible.git
+- src: https://github.com/DensoSVIC/xronos_docker_ansible.git
   name: xronos_docker_ansible
-  version: v1.1.0
 
 - src: https://github.com/xronos-inc/xronos_influxdb_ansible.git
   name: xronos_influxdb_ansible
@@ -18,13 +16,11 @@ roles:
   name: xronos_grafana_ansible
   version: v1.1.0
 
-- src: https://github.com/xronos-inc/xronos_k3s_agent_ansible.git
+- src: https://github.com/DensoSVIC/xronos_k3s_agent_ansible.git
   name: xronos_k3s_agent_ansible
-  version: v1.1.1
   
-- src: https://github.com/xronos-inc/xronos_k3s_server_ansible.git
+- src: https://github.com/DensoSVIC/xronos_k3s_server_ansible.git
   name: xronos_k3s_server_ansible
-  version: v1.1.1
 
 - src: https://github.com/xronos-inc/xronos_lgsvl_simulator_ansible.git
   name: xronos_lgsvl_simulator_ansible
@@ -34,9 +30,8 @@ roles:
   name: xronos_lfc_ansible
   version: v1.1.1
 
-- src: https://github.com/xronos-inc/xronos_ubuntu_common_ansible.git
+- src: https://github.com/DensoSVIC/xronos_ubuntu_common_ansible.git
   name: xronos_ubuntu_common_ansible
-  version: v1.1.0
 
 - src: https://github.com/xronos-inc/xronos_ubuntu_desktop_ansible.git
   name: xronos_ubuntu_desktop_ansible

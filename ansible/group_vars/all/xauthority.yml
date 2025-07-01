@@ -1,0 +1,2 @@
+---
+user_xauthority: "{{ ansible_env.HOME }}/.Xauthority"

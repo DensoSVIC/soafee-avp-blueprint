@@ -472,6 +472,15 @@ function ansible_set_environment() {
     ansible_args="${ansible_args} --extra-vars deployment=${deployment}"
     # inventory
     ansible_args="${ansible_args} --inventory ${ansible_docker_home}/instances/${deployment}-inventory.yml"
+    # aws
+    for var in AWS_REGION AWS_ACCESS_KEY AWS_SECRET_KEY; do
+        val="${!var}"
+        if [ -n "$val" ]; then
+            # Convert variable name to lowercase for use in extra-vars
+            key=$(echo "$var" | tr '[:upper:]' '[:lower:]')
+            ansible_args+=" --extra-vars ${key}=${val}"
+        fi
+    done
 }
 
 # ansible_update_instance_volume() - copy local instances to volume 'xronos-${deployment}-instances'
@@ -1019,6 +1028,7 @@ case ${ARG_COMMAND} in
         fi
         print_header
         show_config $@
+        ansible_init
         run_configure $@
         ;;
     init-user)

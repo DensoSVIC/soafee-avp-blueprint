@@ -10,4 +10,4 @@
 
 - name: Set fact display
   ansible.builtin.set_fact:
-    display: "{{ _dcv_display.stdout | default(ansible_env.DISPLAY) | default(':0') }}"
+    display: "{{ _dcv_display.stdout | default(ansible_env.DISPLAY) | default(':1') }}"

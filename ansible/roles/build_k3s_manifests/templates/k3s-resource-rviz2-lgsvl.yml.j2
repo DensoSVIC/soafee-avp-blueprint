@@ -27,7 +27,8 @@ spec:
         user: {{ ansible_user }}
     spec:
       hostname: rviz2-lgsvl
-      nodeName: {{ deployment }}-avp-render
+      nodeSelector: 
+        node_name: {{ deployment }}-avp-render
 {% if _k3s_use_gpu | bool %}
       runtimeClassName: nvidia
 {% endif %}

@@ -26,7 +26,8 @@ spec:
         user: {{ ansible_user }}
     spec:
       hostname: rti
-      nodeName: "{{ deployment }}-avp-ewaol"
+      nodeSelector: 
+        node_name: {{ deployment }}-avp-ewaol
       terminationGracePeriodSeconds: 3
       imagePullSecrets:
       - name: "{{ deployment }}-{{ ansible_user }}-ecr"
