@@ -25,7 +25,6 @@
       - mesa-common-dev
       - make
       - jq
-      - yq
       - zstd
       - liblz4-tool
       - qemu-utils

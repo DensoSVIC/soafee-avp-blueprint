@@ -26,7 +26,8 @@ spec:
         app: avp-web-interface
         user: {{ ansible_user }}
     spec:
-      nodeName: {{ deployment }}-avp-render
+      nodeSelector: 
+        node_name: {{ deployment }}-avp-render
       hostname: avp-web-interface
       terminationGracePeriodSeconds: 3
       imagePullSecrets:

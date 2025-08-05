@@ -4,6 +4,7 @@
 # EC2 instances
 module "instance_ec2" {
   source  = "terraform-aws-modules/ec2-instance/aws"
+  version = "5.8.0"
   count = length(var.instances)
 
   name = "${var.instances[count.index].name}"

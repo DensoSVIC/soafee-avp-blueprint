@@ -37,14 +37,16 @@ It may be possible to use the EWAOL image from this blueprint, but this has not 
 
 The modifications needed to adapt this repository for on-premise deployment should include (but aren't limited to) the following:
 
-1. Use a deployment name such as `onsite` that reflects the name of your site or deployment. This differentiates your onsite deployment from the default `soafee` cloud deployment. Use this deployment name for all `blueprint` commands.
+1. Use a deployment name such as `onsite` that reflects the name of your site or deployment.  To do this, run `set-deplloyment` from the `blueprint` scripts. This differentiates your onsite deployment from the default `soafee` cloud deployment. Use this deployment name for all `blueprint` commands.
 1. Create instance information for your onsite deployment. Template instance information is located in [onsite-instance-template/](onsite-instance-template) and may be copied into your local `instances` folder. The instance information includes an Ansible inventory, POSIX hosts file, and OpenSSH config file for your deployment.
     If you plan to use a single hardware instance for more than one role, such as running Xronos Dashboard and the AVP render on the same host, define the host only once in the inventory and then include it as a child of any additional roles.
+
+    The inventory_hostname of each hardware instance (e.g. `amd64-machine` & `arm64-machine`) does not matter as long as they are correctly assigned to each group under `children`.
 
     Starting with an Ubuntu 24.04 server installation (and not a desktop installation) for the render instance will ensure the installation of an NVIDIA driver that is compatible with LG SVL Simulator.
 1. Configure your container registry for federate images.
     - If using ECR:
-      1. Ensure AWS access keys are configured in the environment variables `AWS_ACCESS_KEY`, `AWS_SECRET_KEY` and `AWS_EC2_REGION`.
+      1. Ensure AWS access keys are configured in the environment variables `AWS_ACCESS_KEY`, `AWS_SECRET_KEY` and `AWS_REGION`.
       1. Set the ECR address to the Ansible inventory.
     - If using Docker hub:
       1. Comment-out the Ansible steps to create ECR repositories for each federate.
@@ -60,4 +62,14 @@ The modifications needed to adapt this repository for on-premise deployment shou
 
 Then run the `blueprint` scripts, omitting the first `provision` step.
 
-[!NOTE] these scripts assume the user `ubuntu` exists and that it has sudo access. If the sudo password is required, append `--ask-become` to run commands that invoke ansible.*
+[!NOTE] these scripts assume the user `ubuntu` exists and that it has sudo access (`avp-ewaol` expects user `user`). If the sudo password is required, append `--ask-become` to run commands that invoke ansible.*
+
+An SSH key must be generated and added each host's `authorized_keys` file for its respective user.  The private and public key must then be added to the `instances` directory and respectively be named `<deployment>-default.pem` and `<deployment>-default.pub`
+
+## Known Issues
+
+Some hardware setups may encounter connection issues with K3s between hosts. A workaround that often resolves this is to restart the k3s server running on the render host after starting the demo the AVP containers have been deployed. 
+```
+blueprint start
+blueprint shell soafee-avp-render 'sudo systemctl restart k3s'
+```

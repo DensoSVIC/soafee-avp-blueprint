@@ -1,0 +1,13 @@
+- name: Query user ID for '{{ ansible_user }}'
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ ansible_user }}"
+
+- name: Symmlink DCV Xauthority cookie to ~/.Xauthority
+  become: true
+  ansible.builtin.file:
+    src:   "/run/user/{{ getent_passwd[ansible_user][1] }}/gdm/Xauthority"
+    dest:  "{{ ansible_env.HOME }}/.Xauthority"
+    state: link
+    force: true
+    follow: false
