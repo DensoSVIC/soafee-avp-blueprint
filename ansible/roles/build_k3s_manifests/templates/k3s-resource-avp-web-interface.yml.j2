@@ -27,7 +27,7 @@ spec:
         user: {{ ansible_user }}
     spec:
       nodeSelector: 
-        node_name: {{ deployment }}-avp-render
+        kubernetes.io/hostname: {{ deployment }}-avp-render
       hostname: avp-web-interface
       terminationGracePeriodSeconds: 3
       imagePullSecrets:

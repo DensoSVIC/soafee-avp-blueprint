@@ -27,7 +27,7 @@ spec:
     spec:
       hostname: rti
       nodeSelector: 
-        node_name: {{ deployment }}-avp-ewaol
+        kubernetes.io/hostname: {{ deployment }}-avp-ewaol
       terminationGracePeriodSeconds: 3
       imagePullSecrets:
       - name: "{{ deployment }}-{{ ansible_user }}-ecr"

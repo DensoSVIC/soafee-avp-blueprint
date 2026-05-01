@@ -28,7 +28,7 @@ spec:
     spec:
       hostname: rviz2-lgsvl
       nodeSelector: 
-        node_name: {{ deployment }}-avp-render
+        kubernetes.io/hostname: {{ deployment }}-avp-render
 {% if _k3s_use_gpu | bool %}
       runtimeClassName: nvidia
 {% endif %}

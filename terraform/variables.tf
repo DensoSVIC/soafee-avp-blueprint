@@ -100,7 +100,7 @@ variable "ami_ewaol" {
   description = "AWS AMI to use for EWAOL EC2 aarch64 instances"
   
   # soafee-ewaol-scarthgap-aws-ec2-arm64.rootfs-20250221030541-ewaol-scarthgap-v2.0.0-20250221030541-arm64 us-east-1
-  default = "ami-03f61a1fc83b7f58e"
+  default = "ami-098fdec70f8168a05"
 }
 
 variable "manage_global_vmimport_role" {

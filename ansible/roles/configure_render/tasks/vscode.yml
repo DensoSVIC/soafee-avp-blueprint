@@ -9,22 +9,31 @@
     value: "true"
     vtype: "boolean"
 
-- name: Download Microsoft signing key
+- name: Download Microsoft signing key (ASCII)
   become: true
   ansible.builtin.get_url:
     url: https://packages.microsoft.com/keys/microsoft.asc
-    dest: /etc/apt/trusted.gpg.d/packages.microsoft.asc
-    mode: u=rw,g=r,o=r
+    dest: /tmp/microsoft.asc
+    mode: '0644'
+
+- name: Dearmor Microsoft signing key
+  become: true
+  ansible.builtin.command:
+    cmd: gpg --yes --dearmor -o /usr/share/keyrings/microsoft.gpg /tmp/microsoft.asc
+    creates: /usr/share/keyrings/microsoft.gpg
 
 - name: Add apt repository
   become: true
   ansible.builtin.apt_repository:
-    repo: deb [signed-by=/etc/apt/trusted.gpg.d/packages.microsoft.asc] https://packages.microsoft.com/repos/code stable main
+    repo: deb [arch=amd64,arm64,armhf signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/code stable main
+    filename: vscode
+    state: present
 
 - name: Install apt package code{{ '=' ~ configure_vscode_version if configure_vscode_version else '' }}
   become: true
   ansible.builtin.apt:
     name: code{{ '=' ~ configure_vscode_version if configure_vscode_version else '' }}
+    update_cache: true
 
 - name: Install VS Code extensions
   with_items: "{{ configure_vscode_extensions }}"

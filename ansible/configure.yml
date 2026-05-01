@@ -72,7 +72,7 @@
         ubuntu_apt_upgrade: never
         ubuntu_trim_motd: true
         ubuntu_disable_unattended_upgrades: true
-        ubuntu_snapshot: 20250206T040000Z
+        # ubuntu_snapshot: 20250206T040000Z
 
     - name: xronos_aws_cli_ansible
       role: xronos_aws_cli_ansible
@@ -258,31 +258,6 @@
       vars:
         ewaol_distro_codename: scarthgap
         ewaol_kas_version: 4.7
-
-
-#############
-# Example: Monte Carlo Pi Estimator
-#############
-
-- hosts: avp_render
-  tags: [always, example_monte_carlo]
-  gather_facts: false
-  roles:
-    - name: monte_carlo_pi
-      role: monte_carlo_pi
-      vars:
-        montecarlo_dashboard_host: "{{ xronos_dashboard_host_private }}"
-        montecarlo_version: v1.1.0
-
-- hosts: xronos_dashboard
-  tags: [always, example_monte_carlo]
-  gather_facts: false
-  tasks:
-    - name: Copy Monte Carlo dashboard into Grafana dashboards
-      ansible.builtin.get_url:
-        url: https://raw.githubusercontent.com/xronos-inc/example-monte-carlo-pi/main/grafana/example-monte-carlo-pi.json
-        dest: "/opt/{{ deployment }}/grafana/dashboards/"
-
 
 #############
 # Example: AVP
